@@ -13,10 +13,10 @@ import matplotlib.pyplot as plt
 from scipy.io import loadmat
 from scipy import ndimage
 from scipy import stats
-from sklearn.linear_model import TweedieRegressor
+from sklearn.linear_model import TweedieRegressor, Ridge
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import ShuffleSplit
-from matplotlib.colors import BoundaryNorm
+# from matplotlib.colors import BoundaryNorm
 
 # from sklearn.metrics import get_scorer_names, d2_tweedie_score, make_scorer
 
@@ -48,6 +48,20 @@ def load_matfile(dataname = fname):
 #     return theta2,score
 
 
+def find_good_data():
+    D_ppc = load_matfile()
+    good_list = []
+    for n in range(np.size(D_ppc,0)):
+        S_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
+        for sp in np.array(D_ppc[n,0]):
+            if sp < np.size(S_all,1):
+                S_all[0,sp[0]-1] = 1  #spike time starts at 1 but indexing starts at 0
+                
+        if np.mean(S_all)*1e3>1:
+            good_list = np.concatenate((good_list,[n]))
+    return good_list
+
+
 # %%
 def glm_per_neuron(n,t_period,window,k):
     D_ppc = load_matfile()
@@ -76,8 +90,8 @@ def glm_per_neuron(n,t_period,window,k):
     Intercept = [];
     CI2 = [];
     score = [];
-    # S = np.concatenate((S_pre,S),1)
-    # t_period = t_period+prestim
+    S = np.concatenate((S_pre,S),1)
+    t_period = t_period+prestim
     
     
     # remove conditioning trials 
@@ -86,7 +100,8 @@ def glm_per_neuron(n,t_period,window,k):
     X = np.concatenate((X[0:200,:],X[D_ppc[n,5][0][0]:,:]),0)
     N_trial2 = np.size(S,0)
     # X = X[:,[0,3]]
-    reg = TweedieRegressor(power = 0, alpha = 0)
+    # reg = TweedieRegressor(power = 0, alpha = 0)
+    reg = Ridge(alpha = 1e0)
     # S = ndimage.gaussian_filter(S,sigma = [0,2])
 
     for w in range(int(t_period/window)):
@@ -137,18 +152,23 @@ def glm_per_neuron(n,t_period,window,k):
     
     # fig, ax = plt.subplots()
     cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue']
+    clabels = ["contin","action","correct","stim"]
+    x_axis = np.arange(1,t_period,window)
     for c in range(np.size(X,1)):        
         # ax1.plot(ndimage.gaussian_filter(TT[c,:],3),linewidth = 2.0, color = cmap[c])
-        ax2.plot(ndimage.gaussian_filter(TT2[c,:],3),linewidth = 2.0, color = cmap[c])
-        x_axis = np.linspace(1, 90, 90);
+        ax2.plot(x_axis,ndimage.gaussian_filter(TT2[c,:],3),linewidth = 2.0, color = cmap[c], label = clabels[c])
+        # x_axis = np.linspace(1, 90, 90);
+        # x_axis = np.linspace(1,int(t_period/window),int(t_period/window))
         ax2.fill_between(x_axis,(ndimage.gaussian_filter(TT2[c,:],3) - CI2[c,:]),
                         (ndimage.gaussian_filter(TT2[c,:],3 )+ CI2[c,:]), color=cmap[c], alpha = 0.2)
     
     # ax1.legend(["stim","action","correct"])
-    ax2.legend(["contin","action","correct","stim"])
+    # ax2.legend(["contin","action","correct","stim"])
+    ax2.legend(loc = 'upper right')
 
-    e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])/window
-    # e_lines = e_lines+prestim/window
+    # e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])/window
+    e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])
+    e_lines = e_lines+prestim
     # ax1.vlines(x =e_lines, 
     #           ymin = np.amin(ndimage.gaussian_filter(TT,sigma = [0,3])), 
     #           ymax = np.amax(ndimage.gaussian_filter(TT,sigma = [0,3])),
@@ -163,23 +183,33 @@ def glm_per_neuron(n,t_period,window,k):
               colors = 'black', 
               linewidth = 2.0)
     
-    ax4.plot(np.mean(score,1)*1e2)
+    ax4.plot(x_axis,ndimage.gaussian_filter(np.mean(score,1)*1e2,1))
     
     
-    # plot rasterplot for different conditions (stim)
-    # norm = BoundaryNorm([-1, -.2, .2, 1], 256)
-    stim_ind = X[:,1] == 1
+    # Plotting firing rates for one condition VS the other
+    # 0 : contingency 
+    # 1 : lick vs no lick
+    # 2 : correct vs wrong
+    # 3 : stim 1 vs stim 2
+    stim_ind = X[:,2] == 1 
     
     # imx = ax1.pcolormesh(Y[stim_ind,:], cmap="gray_r")
     # imx2 = ax3.pcolormesh(Y[np.invert(stim_ind),:],cmap = "gray_r")
 
-    ax1.plot(ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2),linewidth = 2.0, color = cmap[2])
-    ax1.plot(ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2),linewidth = 2.0, color = cmap[3])
+    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2),
+             linewidth = 2.0, color = cmap[2],label = 'licked')
+    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2),
+             linewidth = 2.0, color = cmap[3],label = 'not licked')
+    ax1.set_title('Firing rate y')
+    ax1.legend(loc = 'upper right')
+
     
-    ax3.plot(ndimage.gaussian_filter(np.mean(Yhat[stim_ind,:],0),2),linewidth = 2.0, color = cmap[2])
-    ax3.plot(ndimage.gaussian_filter(np.mean(Yhat[np.invert(stim_ind),:],0),2),linewidth = 2.0, color = cmap[3]) 
-    
-    plt.title('unit_'+str(n))
+    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind,:],0),2),linewidth = 2.0, color = cmap[2])
+    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[np.invert(stim_ind),:],0),2),linewidth = 2.0, color = cmap[3]) 
+    ax3.set_title('Prediction y_hat')
+
+    ax2.set_title('unit_'+str(n))
+    ax4.set_title('explained variance')
     plt.show()
     Model_Theta = TT2
     
@@ -190,8 +220,12 @@ def glm_per_neuron(n,t_period,window,k):
 t_period = 4500
 window = 50 # window of 100ms, averaging firing rates to this window 
 k = 10 # number of cv
-# n = 88
-for n in range(170):
+# n = 109
+
+good_list = find_good_data()
+
+for n in good_list:
+    n = int(n)
     X, Y, Yhat, Model_Theta = glm_per_neuron(n, t_period, window,k)
     
     
