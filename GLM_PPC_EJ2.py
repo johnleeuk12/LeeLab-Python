@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from scipy.io import loadmat
 from scipy import ndimage
 from scipy import stats
-from sklearn.linear_model import TweedieRegressor, Ridge
+from sklearn.linear_model import TweedieRegressor, Ridge, ElasticNet
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import ShuffleSplit
 # from matplotlib.colors import BoundaryNorm
@@ -22,7 +22,7 @@ from sklearn.model_selection import ShuffleSplit
 
 # %%
 
-fname = 'GLM_dataset_220824_new.mat'
+fname = 'GLM_dataset_AC_new.mat'
 np.seterr(divide = 'ignore') 
 def load_matfile(dataname = fname):
     MATfile = loadmat(dataname)
@@ -60,6 +60,7 @@ def find_good_data():
         if np.mean(S_all)*1e3>1:
             good_list = np.concatenate((good_list,[n]))
     return good_list
+
 
 
 # %%
@@ -101,7 +102,7 @@ def glm_per_neuron(n,t_period,window,k):
     N_trial2 = np.size(S,0)
     # X = X[:,[0,3]]
     # reg = TweedieRegressor(power = 0, alpha = 0)
-    reg = Ridge(alpha = 1e0)
+    reg = Ridge(alpha = 1e1)
     # S = ndimage.gaussian_filter(S,sigma = [0,2])
 
     for w in range(int(t_period/window)):
@@ -213,25 +214,72 @@ def glm_per_neuron(n,t_period,window,k):
     plt.show()
     Model_Theta = TT2
     
-    return X, Y, Yhat, Model_Theta
+    return X, Y, Yhat, Model_Theta, score
         
 
 # n = 0 # neuron id, will do this for all neurons
 t_period = 4500
 window = 50 # window of 100ms, averaging firing rates to this window 
+window2 = 500
 k = 10 # number of cv
 # n = 109
 
 good_list = find_good_data()
 
+Data = {}
+
+
 for n in good_list:
     n = int(n)
-    X, Y, Yhat, Model_Theta = glm_per_neuron(n, t_period, window,k)
+    X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k)
+    Data[n] = {"coef" : Model_Theta, "score" : score}    
     
     
+# %% Model analysis, categorizing each neuron
+
+# Data{score} = 100 by k
+# Data{coef}  = 4 by 100   
+def Model_analysis(n,window, window2,Data):
+    
+    bin_size = int(window2/window)
+    Dat_length  = np.size(Data[n]["score"],0)
+    Model_Theta = Data[n]["coef"]/(np.max(np.abs(Data[n]["coef"]))+1) # Soft normalization
+
+    score_mean  = np.zeros((1,2*int(Dat_length/bin_size)))
+    score_var   = np.zeros((1,2*int(Dat_length/bin_size)))
+    model_mean  = np.zeros((np.size(Model_Theta,0),2*int(Dat_length/bin_size)))
+    
+    k = 0;
+    for ind in np.arange(0,Dat_length-bin_size/2,int(bin_size/2)):
+        ind = int(ind)
+        score_mean[0,k] = np.mean(Data[n]["score"][ind:ind+bin_size,:])
+        score_var[0,k]  = np.var(Data[n]["score"][ind:ind+bin_size,:])
+        model_mean[:,k] = np.mean(Model_Theta[:,ind:ind+bin_size],1)
+        k = k+1
+    
+    max_ind = np.argmax(score_mean)
+    best_score = score_mean[0,max_ind]
+    coef = model_mean[:,max_ind]
+    
+    return max_ind, best_score, coef
 
 
+best_kernel = np.zeros((2,np.size(good_list,0)))
+k = 0;
+for n in good_list:
+    n = int(n)
+    mi, bs, coef = Model_analysis(n, window, window2, Data)
+    if bs > 1e-2:
+        best_kernel[0,k] = int(mi)
+        best_kernel[1,k] = int(np.argmax(np.abs(coef)))+1
+    k = k+1
+    
 
+
+pie_labels = ["Uncategorized", "Contingency", "Action", "Correct","Stimuli"]
+cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:green','tab:blue']
+plt.pie(np.bincount(best_kernel[1,:].astype(int)),labels = pie_labels, colors = cmap)
+plt.show() 
 
 
 
