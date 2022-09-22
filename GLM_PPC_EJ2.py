@@ -30,8 +30,8 @@ from sklearn.model_selection import ShuffleSplit
 # %%
 
 # change fname for filename
-# fname = 'GLM_dataset_AC_new.mat'
-fname = 'GLM_dataset_220824_new.mat'
+fname = 'GLM_dataset_AC_new.mat'
+# fname = 'GLM_dataset_220824_new.mat'
 np.seterr(divide = 'ignore') 
 def load_matfile(dataname = fname):
     MATfile = loadmat(dataname)
@@ -285,18 +285,37 @@ def Model_analysis(n,window, window2,Data,c_ind):
     best_score = score_mean[0,max_ind]
     coef = model_mean[:,max_ind]
     
-    return max_ind, best_score, coef
+    return max_ind, best_score, coef, model_mean
 
+best_kernel = {}
 
-best_kernel = np.zeros((4,np.size(good_list,0)))
+# for each rule (c_ind) we have a best_kernel matrix
+# each matrix contains best time_bin (ind), best coefficient and normalized model_weights
+# row 1 : best ind
+# row 2 : best category [0 1 2 3 4 ] is ["Uncategorized", "Action", "Correct","Stimuli"]
+# row 3 to 5 : normalized weights for action, correct and stimuli
+
+soft_val = 0.5
+
 for c_ind in [1,2]:
+    best_kernel[c_ind] = np.zeros((5,np.size(good_list,0)))
+
     k = 0;
     for n in good_list:
         n = int(n)
-        mi, bs, coef = Model_analysis(n, window, window2, Data,c_ind)
+        mi, bs, coef,beta_weights = Model_analysis(n, window, window2, Data,c_ind)
+        norm_coef = np.abs(coef)
+        # norm_coef = norm_coef/(np.max(norm_coef)+soft_val)
         if bs > 1e-2:
-            best_kernel[(c_ind-1)*c_ind,k] = int(mi)
-            best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
+            best_kernel[c_ind][0,k] = int(mi)
+            best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
+            best_kernel[c_ind][2,k] = norm_coef[0] 
+            best_kernel[c_ind][3,k] = norm_coef[1]
+            best_kernel[c_ind][4,k] = norm_coef[2]
+            # best_kernel[(c_ind-1)*c_ind,k] = int(mi)
+            # best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
+        else:
+            best_kernel[c_ind][2:5,k] = [-1,-1,-1]    
         k = k+1
     
 
@@ -304,14 +323,14 @@ for c_ind in [1,2]:
 pool_kernel = np.zeros((1,np.size(good_list,0)))
 
 for n in range(np.size(pool_kernel)):
-    if best_kernel[1,n] != 0 and best_kernel[3,n] != best_kernel[1,n]: # Lost
+    if best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != best_kernel[1][1,n]: # Lost
         pool_kernel[0,n] = 2
-    elif best_kernel[1,n] != best_kernel[3,n] and best_kernel[3,n] != 0:
+    elif best_kernel[1][1,n] != best_kernel[2][1,n] and best_kernel[2][1,n] != 0:
         pool_kernel[0,n] = 1 # Acq
-    elif best_kernel[1,n] == best_kernel[3,n] != 0:
-        if best_kernel[1,n] == 3:
+    elif best_kernel[1][1,n] == best_kernel[2][1,n] != 0:
+        if best_kernel[1][1,n] == 3:
             pool_kernel[0,n] = 3
-        elif best_kernel[1,n] == 1:
+        elif best_kernel[1][1,n] == 1:
             pool_kernel[0,n] = 5
         else:
             pool_kernel[0,n] = 4
@@ -322,8 +341,8 @@ fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))
 
 pie_labels = ["Uncategorized", "Action", "Correct","Stimuli"]
 cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue']
-ax1.pie(np.bincount(best_kernel[1,:].astype(int)),labels = pie_labels, colors = cmap)
-ax2.pie(np.bincount(best_kernel[3,:].astype(int)),labels = pie_labels, colors = cmap)
+ax1.pie(np.bincount(best_kernel[1][1,:].astype(int)),labels = pie_labels, colors = cmap)
+ax2.pie(np.bincount(best_kernel[2][1,:].astype(int)),labels = pie_labels, colors = cmap)
 ax1.set_title('Rule1')
 ax2.set_title('Rule2')
 pie_labels2 = ["Uncategorized", "Acq", "Lost","Stimuli","Correct","Action"]
@@ -340,15 +359,44 @@ plt.show()
 # plt.show() 
 
 
+# %% plotting beta weights of all significant neurons 
+
+fig, axes = plt.subplots(3,2,figsize = (10,10))
+bins = np.arange(1,20)
+cmap3 = ['tab:orange','tab:green','tab:blue',]
+x_axis = bins*0.250
+for f in range(3):
+    axes[f,0].scatter(best_kernel[1][0,:],best_kernel[1][f+2,:],c = cmap3[f])
+    axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
+    axes[f,0].set_ylim([0,1])
+    axes[f,1].set_ylim([0,1])
+    
+# Plotting boxplot for each timewindow
+beta_time = {}
+
+for c_ind in [1,2]:
+    for f in range(3):
+        beta_time[f,c_ind] = [];
+        weight_thresh = 0.1
+        for b in bins:
+            ind = best_kernel[c_ind][0,:] == b
+            ind2 = best_kernel[c_ind][f+2,ind] > weight_thresh
+            beta_time[f,c_ind].append(best_kernel[c_ind][f+2,ind][ind2])
 
 
+fig, axes = plt.subplots(3,2,figsize = (10,10))
 
 
+for c_ind in [1,2]:
+    for f in range(3):
+        medianprops = dict(linestyle='-.', linewidth=2.5, color=cmap3[f])
+        axes[f,c_ind-1].boxplot(beta_time[f,c_ind],medianprops= medianprops)
+        axes[f,c_ind-1].set_xticks(bins[1::2], x_axis[1::2])
+        axes[f,c_ind-1].set_ylim(0,1)
 
 
-
-
-
+axes[0,0].set_title('Rule1')
+axes[0,1].set_title('Rule2')
 
 
 
