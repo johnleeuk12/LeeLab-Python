@@ -425,8 +425,8 @@ def rule1_VS_rule2(good_list,best_kernel):
 
 
 # plotting piecharts
-pie_all_rules(best_kernel)
-# rule1_VS_rule2(good_list, best_kernel)
+# pie_all_rules(best_kernel)
+rule1_VS_rule2(good_list, best_kernel)
 
 
 
