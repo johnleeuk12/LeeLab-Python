@@ -30,8 +30,8 @@ from sklearn.model_selection import ShuffleSplit
 # %%
 
 # change fname for filename
-fname = 'GLM_dataset_AC_new.mat'
-# fname = 'GLM_dataset_220824_new.mat'
+# fname = 'GLM_dataset_AC_new.mat'
+fname = 'GLM_dataset_220824_new.mat'
 np.seterr(divide = 'ignore') 
 def load_matfile(dataname = fname):
     MATfile = loadmat(dataname)
@@ -95,7 +95,7 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
         S[tr,:] = S_all[0,D_ppc[n,2][tr,0]-1:D_ppc[n,2][tr,0]+t_period-1]
         S_pre[tr,:] = S_all[0,D_ppc[n,2][tr,0]-prestim-1:D_ppc[n,2][tr,0]-1]
     
-    X = D_ppc[n,2][:,2:6]
+    X = D_ppc[n,2][:,2:6] # task variables
     # R = D_ppc[n,2][:,1]
     Y = [];
     Yhat = [];
@@ -114,17 +114,34 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
     X = np.concatenate((X[0:200,:],X[D_ppc[n,5][0][0]:,:]),0)
     
     # remove rule1 or rule2
-    if c_ind ==1:
-        r_ind = np.arange(200)
-    elif c_ind ==2:
-        r_ind = np.arange(200,np.size(X,0))
+    # if c_ind ==0: 
         
-    S = S[r_ind,:]
-    X = X[r_ind,:]
+    if c_ind == -1:                
+        # Adding previous trial correct vs wrong
+        Xpre = np.concatenate(([0],X[0:-1,2]),0)
+        Xpre = Xpre[:,None]
+        X = np.concatenate((X,Xpre),1)
+    elif c_ind !=0: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
+        if c_ind ==1:
+            r_ind = np.arange(200)
+        elif c_ind ==2:
+            r_ind = np.arange(200,np.size(X,0))
+        
+        S = S[r_ind,:]
+        X = X[r_ind,:]
+        X = X[:,1:4]
+
+    
     N_trial2 = np.size(S,0)
-    X = X[:,0:3]
+    
+    # 0 : contingency 
+    # 1 : lick vs no lick
+    # 2 : correct vs wrong
+    # 3 : stim 1 vs stim 2
+    # 4 : if exists, would be correct history (previous correct )
+    
     # reg = TweedieRegressor(power = 0, alpha = 0)
-    reg = Ridge(alpha = 1e1)
+    reg = Ridge(alpha = 1e1) #Using a linear regression model with Ridge regression regulator set with alpha = 1
     # S = ndimage.gaussian_filter(S,sigma = [0,2])
 
     for w in range(int(t_period/window)):
@@ -139,7 +156,7 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
         inter2 = np.zeros((1,k))
         pp = 0
         for model in cv_results['estimator']:
-            theta2[:,pp] = model.coef_
+            theta2[:,pp] = model.coef_ 
             inter2[:,pp] = model.intercept_
             pp = pp+1
         theta3 = np.concatenate((np.mean(inter2,1),np.mean(theta2,1)))
@@ -174,10 +191,16 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
     
     
     # fig, ax = plt.subplots()
-    # cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue']
-    # clabels = ["contin","action","correct","stim"]
-    cmap = ['tab:orange', 'tab:green','tab:blue']
-    clabels = ["action","correct","stim"]
+    
+    if c_ind == 0:
+        cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue']
+        clabels = ["contin","action","correct","stim"]
+    elif c_ind == -1:
+        cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
+        clabels = ["contin","action","correct","stim","history"]
+    else:           
+        cmap = ['tab:orange', 'tab:green','tab:blue']
+        clabels = ["action","correct","stim"]
     x_axis = np.arange(1,t_period,window)
     for c in range(np.size(X,1)):        
         # ax1.plot(ndimage.gaussian_filter(TT[c,:],3),linewidth = 2.0, color = cmap[c])
@@ -216,7 +239,7 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
     # 1 : lick vs no lick
     # 2 : correct vs wrong
     # 3 : stim 1 vs stim 2
-    stim_ind = X[:,2] == 1 
+    stim_ind = X[:,3] == 1 
     
     # imx = ax1.pcolormesh(Y[stim_ind,:], cmap="gray_r")
     # imx2 = ax3.pcolormesh(Y[np.invert(stim_ind),:],cmap = "gray_r")
@@ -246,17 +269,19 @@ t_period = 4500
 window = 50 # window of 100ms, averaging firing rates to this window 
 window2 = 500
 k = 10 # number of cv
-# n = 109
+n = 109
 
 good_list = find_good_data()
 
 Data = {}
 
-for c_ind in [1,2]:
-    for n in good_list:
-        n = int(n)
-        X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k,c_ind)
-        Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}    
+# for c_ind in [1,2]:
+    
+c_ind =0
+# for n in good_list:
+n = int(n)
+X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k,c_ind)
+Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}    
     
 
 # %% Model analysis, categorizing each neuron
@@ -297,8 +322,16 @@ best_kernel = {}
 
 soft_val = 0.5
 
-for c_ind in [1,2]:
-    best_kernel[c_ind] = np.zeros((5,np.size(good_list,0)))
+for c_ind in [0]:
+    if c_ind == 0:
+        b_ind = 6
+    elif c_ind == -1:
+        b_ind = 7
+    else:
+        b_ind = 5
+        
+    best_kernel[c_ind] = np.zeros((b_ind,np.size(good_list,0)))
+
 
     k = 0;
     for n in good_list:
@@ -306,20 +339,36 @@ for c_ind in [1,2]:
         mi, bs, coef,beta_weights = Model_analysis(n, window, window2, Data,c_ind)
         norm_coef = np.abs(coef)
         # norm_coef = norm_coef/(np.max(norm_coef)+soft_val)
-        if bs > 1e-2:
+        if bs > 0.5*1e-2:
             best_kernel[c_ind][0,k] = int(mi)
             best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
             best_kernel[c_ind][2,k] = norm_coef[0] 
             best_kernel[c_ind][3,k] = norm_coef[1]
             best_kernel[c_ind][4,k] = norm_coef[2]
+            if c_ind ==0:
+                best_kernel[c_ind][5,k] = norm_coef[3]
+            elif c_ind == -1:
+                best_kernel[c_ind][6,k] = norm_coef[4]
             # best_kernel[(c_ind-1)*c_ind,k] = int(mi)
             # best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
         else:
-            best_kernel[c_ind][2:5,k] = [-1,-1,-1]    
+            best_kernel[c_ind][2:b_ind,k] = np.ones((1,b_ind-2))*-1    
         k = k+1
     
 
+# %% plot piechart for all trials
+ 
 
+pie_labels = ["Uncategorized", "Contingency", "Action", "Correct","Stimuli"]
+cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:green','tab:blue']
+# pie_labels = ["Uncategorized", "Action", "Correct","Stimuli"]
+# cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue']
+plt.pie(np.bincount(best_kernel[0][1,:].astype(int)),labels = pie_labels, colors = cmap)
+plt.show() 
+
+np.bincount(best_kernel[0][1,:].astype(int))
+
+# %% Pool kernel to see change between Rule 1 and 2
 pool_kernel = np.zeros((1,np.size(good_list,0)))
 
 for n in range(np.size(pool_kernel)):
@@ -336,6 +385,9 @@ for n in range(np.size(pool_kernel)):
             pool_kernel[0,n] = 4
 
             
+
+
+# %% plot pie chart for categories
 
 fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))
 
@@ -361,17 +413,28 @@ plt.show()
 
 # %% plotting beta weights of all significant neurons 
 
-fig, axes = plt.subplots(3,2,figsize = (10,10))
+fig, axes = plt.subplots(4,2,figsize = (10,10))
 bins = np.arange(1,20)
-cmap3 = ['tab:orange','tab:green','tab:blue',]
+# cmap3 = ['tab:orange','tab:green','tab:blue',]
+cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue']
 x_axis = bins*0.250
-for f in range(3):
-    axes[f,0].scatter(best_kernel[1][0,:],best_kernel[1][f+2,:],c = cmap3[f])
-    axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
+# for f in range(3):
+#     axes[f,0].scatter(best_kernel[1][0,:],best_kernel[1][f+2,:],c = cmap3[f])
+#     axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
+#     axes[f,0].set_ylim([0,1])
+#     axes[f,1].set_ylim([0,1])
+#     axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
+#     axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
+
+for f in range(4):
+    axes[f,0].scatter(best_kernel[0][0,:],best_kernel[0][f+2,:],c = cmap3[f])
+    # axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
     axes[f,0].set_ylim([0,1])
-    axes[f,1].set_ylim([0,1])
+    # axes[f,1].set_ylim([0,1])
+    axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
+    # axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
     
-# Plotting boxplot for each timewindow
+#%% Plotting boxplot for each timewindow
 beta_time = {}
 
 for c_ind in [1,2]:
@@ -398,8 +461,7 @@ for c_ind in [1,2]:
 axes[0,0].set_title('Rule1')
 axes[0,1].set_title('Rule2')
 
-
-
+# plt.hist(best_kernel[1][0,:],bins)
 
 
 
