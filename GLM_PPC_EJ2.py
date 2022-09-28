@@ -42,8 +42,8 @@ from sklearn.model_selection import ShuffleSplit
 
 # change fname for filename
 
-fname = 'GLM_dataset_AC_new.mat'
-# fname = 'GLM_dataset_220824_new.mat'
+# fname = 'GLM_dataset_AC_new.mat'
+fname = 'GLM_dataset_220824_new.mat'
 
 np.seterr(divide = 'ignore') 
 def load_matfile(dataname = fname):
@@ -124,12 +124,16 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
     S = np.concatenate((S[0:200,:],S[D_ppc[n,5][0][0]:,:]),0)
     X = np.concatenate((X[0:200,:],X[D_ppc[n,5][0][0]:,:]),0)
     
+    # only contain conditioningt trials
+    
+    # S = S[201:D_ppc[n,5][0][0]]
+    # X = X[201:D_ppc[n,5][0][0]]
 
     # select analysis and model parameters with c_ind    
     
     if c_ind == -1:                
         # Adding previous trial correct vs wrong
-        Xpre = np.concatenate(([0],X[0:-1,2]),0)
+        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
         Xpre = Xpre[:,None]
         X = np.concatenate((X,Xpre),1)
     elif c_ind !=0: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
@@ -237,7 +241,10 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
     # 1 : lick vs no lick
     # 2 : correct vs wrong
     # 3 : stim 1 vs stim 2
-    stim_ind = X[:,2] == 1 
+    if c_ind ==0:
+       stim_ind = X[:,3] == 1 
+    else:
+       stim_ind = X[:,2] == 1     
     
 
     ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2),
@@ -263,24 +270,28 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
 t_period = 4500
 window = 50 # averaging firing rates with this window 
 window2 = 500
-k = 10 # number of cv
+k = 100 # number of cv
 # n = 109
 
 good_list = find_good_data()
 
 Data = {}
-
+c_list = [0]
 
 
 
 # change c_ind and n here. 
 
-for c_ind in [1,2]:    
+for c_ind in c_list:    
     for n in good_list:
         n = int(n)
-        X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k,c_ind)
-        Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}    
-        
+        try:
+            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k,c_ind)
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}   
+        except:
+            print("Error, probably not enough trials") 
+        finally:
+            print("")
 
 # %% Model analysis, categorizing each neuron
 """ 
@@ -293,12 +304,15 @@ OUTPUT
 max_ind     :   best index for peak of score(explained variance) (not in ms)
 best_score  :   average score at max_ind
 coef        :   Weight coefficients at max_ind
-model_mean  :   Weight coeffcieints across t_period
+model_mean  :   Weight coefficients across t_period
    
 """
-def Model_analysis(n,window, window2,Data,c_ind):
+def Model_analysis(n,window, window2,Data,c_ind,ana_period):
     
+    # time currently defined by window size* data size. ana_period should also be defined thus 
     bin_size = int(window2/window)
+    ana_bin = ana_period/(window2/2)
+
     Dat_length  = np.size(Data[n,c_ind-1]["score"],0)
     Model_Theta = Data[n,c_ind-1]["coef"]/(np.max(np.abs(Data[n,c_ind-1]["coef"]))+1) # Soft normalization
 
@@ -314,11 +328,12 @@ def Model_analysis(n,window, window2,Data,c_ind):
         model_mean[:,k] = np.mean(Model_Theta[:,ind:ind+bin_size],1)
         k = k+1
     
-    max_ind = np.argmax(score_mean)
+    max_ind = np.argmax(score_mean[0,int(ana_bin[0]):int(ana_bin[1])]) + int(ana_bin[0])
     best_score = score_mean[0,max_ind]
     coef = model_mean[:,max_ind]
     
-    return max_ind, best_score, coef, model_mean
+    
+    return max_ind, best_score, coef, model_mean, score_mean
 
 # %% Calculating best_kernel
 
@@ -334,24 +349,18 @@ row 3 to 5  :   normalized weights for action, correct and stimuli
 
 when adding trial history, row 6 is trial history, with best category going up to 5 
 """
-# change c_ind range according to above
-for c_ind in [1,2]:
-    if c_ind == 0:
-        b_ind = 6
-    elif c_ind == -1:
-        b_ind = 7
-    else:
-        b_ind = 5
-        
+# change c_ind range according to 
+
+def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
     best_kernel[c_ind] = np.zeros((b_ind,np.size(good_list,0)))
 
 
     k = 0;
     for n in good_list:
         n = int(n)
-        mi, bs, coef,beta_weights = Model_analysis(n, window, window2, Data,c_ind)
+        mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
-        if bs > 0.5*1e-2:
+        if bs > weight_thresh and bs<60*1e-2:
             best_kernel[c_ind][0,k] = int(mi)
             best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
             best_kernel[c_ind][2,k] = norm_coef[0] 
@@ -366,6 +375,25 @@ for c_ind in [1,2]:
         else:
             best_kernel[c_ind][2:b_ind,k] = np.ones((1,b_ind-2))*-1    
         k = k+1
+        
+    return best_kernel
+
+weight_thresh = 0.5*1e-2
+# ana_period = np.array([1000, 1500]) # (Stimulus presentation period)
+# ana_period = np.array([1500, 2500])
+# ana_period = np.array([2500, 4500])
+ana_period = np.array([0, 4500])
+for c_ind in c_list:
+    if c_ind == 0:
+        b_ind = 6
+    elif c_ind == -1:
+        b_ind = 7
+    else:
+        b_ind = 5
+        
+    best_kernel = get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list)
+        
+
     
 
 # %% plot piechart for all trials
@@ -379,9 +407,9 @@ def pie_all_rules(best_kernel):
     plt.pie(np.bincount(best_kernel[0][1,:].astype(int)),labels = pie_labels, colors = cmap)
     plt.show() 
     
-    np.bincount(best_kernel[0][1,:].astype(int))
+    print(np.bincount(best_kernel[0][1,:].astype(int)))
 
-
+pie_all_rules(best_kernel)
 
 # %% analysis comparing rule1 and rule 2
 """    
@@ -389,23 +417,46 @@ Pool kernel to see change between Rule 1 and 2
 depending on how best kernel changes between rule1 and rule 2 
 we define pool kernel that shows whether encoding is acquired, lost or maintained
 
+index: 
+    0   :   Uncategorized
+    1   :   Acquired (from 0 to encoding)
+    2   :   Lost (from encoding to 0)
+    3   :   Changed (encoding nature has changed)
+    4   :   Maintained, Stim
+    5   :   Maintained, Correct
+    6   :   Maintained, Action
+    
+
 """
 def rule1_VS_rule2(good_list,best_kernel):
 
     pool_kernel = np.zeros((1,np.size(good_list,0)))
     
-    for n in range(np.size(pool_kernel)):
-        if best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != best_kernel[1][1,n]: # Lost
+    for n in range(np.size(pool_kernel)):  
+
+        # if best_kernel[2][1,n] != 0 and best_kernel[1][1,n] != best_kernel[2][1,n]: # Acq
+        #     pool_kernel[0,n] = 1
+        # elif best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != best_kernel[1][1,n]: # Lost
+        #     pool_kernel[0,n] = 2
+        if best_kernel[1][1,n] == 0 and best_kernel[2][1,n] != 0:
+            pool_kernel[0,n] = 1
+        elif best_kernel[2][1,n] == 0 and best_kernel[1][1,n] != 0:
             pool_kernel[0,n] = 2
-        elif best_kernel[1][1,n] != best_kernel[2][1,n] and best_kernel[2][1,n] != 0:
-            pool_kernel[0,n] = 1 # Acq
-        elif best_kernel[1][1,n] == best_kernel[2][1,n] != 0:
+        elif best_kernel[1][1,n] != best_kernel[2][1,n] and best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != 0:
+            # if best_kernel[1][1,n] == 1 and best_kernel[2][1,n] ==3:
+            #     pool_kernel[0,n] = 4 # Action to stim
+            # elif best_kernel[1][1,n] == 3 and best_kernel[2][1,n] ==1:
+            #     pool_kernel[0,n] = 5 # Stim to action
+            # else:
+            pool_kernel[0,n] =3
+                 
+        elif best_kernel[1][1,n] == best_kernel[2][1,n] and best_kernel[2][1,n] !=0 :
             if best_kernel[1][1,n] == 3:
-                pool_kernel[0,n] = 3
-            elif best_kernel[1][1,n] == 1:
-                pool_kernel[0,n] = 5
-            else:
                 pool_kernel[0,n] = 4
+            elif best_kernel[1][1,n] == 1:
+                pool_kernel[0,n] = 6
+            else:
+                pool_kernel[0,n] = 5
 
     # plot pie chart for categories
     
@@ -417,82 +468,133 @@ def rule1_VS_rule2(good_list,best_kernel):
     ax2.pie(np.bincount(best_kernel[2][1,:].astype(int)),labels = pie_labels, colors = cmap)
     ax1.set_title('Rule1')
     ax2.set_title('Rule2')
-    pie_labels2 = ["Uncategorized", "Acq", "Lost","Stimuli","Correct","Action"]
-    cmap2 = ['tab:gray', 'tab:red', 'y','tab:blue','tab:green','tab:orange']
+    pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
+                   "Stimuli","Correct","Action",]
+    cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
+             'tab:blue','tab:green','tab:orange']
     
+    #  "Changed,other","Action to Stim","Stim to Action",
+    #               'tab:brown',(0.5,1,1),(1,0,1),
+
     ax3.pie(np.bincount(pool_kernel[0,:].astype(int)),labels = pie_labels2, colors = cmap2)
     plt.show() 
+    
+
 
 
 # plotting piecharts
 # pie_all_rules(best_kernel)
 rule1_VS_rule2(good_list, best_kernel)
 
+# %% Analyzing weights across time. This code is mostly for c_ind = 0
 
+bins = np.arange(21)
+count_sig = np.zeros((1,21))
 
+for c_ind in c_list:
+    for n in good_list:
+        n = int(n)
+        mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
+        for b in bins:
+            if mean_score[0,b] > weight_thresh:
+                count_sig[0,b] += 1
+                
+x_axis = bins*0.250 -1  
+count_sig = count_sig/np.size(good_list)*1e2              
+plt.plot(x_axis,count_sig[0])
 
-
-
-
-
-
-
-
-
-
-
-
+fig, ax1 = plt.subplots(1,1,figsize = (5,4))
+ax1.bar(x_axis,count_sig[0],
+                   width = 0.2,
+                   edgecolor ='black')
+ax1.set_ylim([0,70])
+                
 # %% plotting beta weights of all significant neurons 
 
-fig, axes = plt.subplots(4,2,figsize = (10,10))
+fig, axes = plt.subplots(4,1,figsize = (5,10))
 bins = np.arange(1,20)
-# cmap3 = ['tab:orange','tab:green','tab:blue',]
 cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue']
 x_axis = bins*0.250
-# for f in range(3):
-#     axes[f,0].scatter(best_kernel[1][0,:],best_kernel[1][f+2,:],c = cmap3[f])
-#     axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
-#     axes[f,0].set_ylim([0,1])
-#     axes[f,1].set_ylim([0,1])
-#     axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
-#     axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
+
+ana_period = np.array([0, 4500])
+
+for c_ind in [0]:
+    if c_ind == 0:
+        b_ind = 6
+    elif c_ind == -1:
+        b_ind = 7
+    else:
+        b_ind = 5
+        
+    best_kernel = get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list)
+
 
 for f in range(4):
-    axes[f,0].scatter(best_kernel[0][0,:],best_kernel[0][f+2,:],c = cmap3[f])
-    # axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
-    axes[f,0].set_ylim([0,1])
-    # axes[f,1].set_ylim([0,1])
-    axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
-    # axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
+    axes[f].scatter(best_kernel[0][0,:],best_kernel[0][f+2,:],c = cmap3[f])
+    axes[f].set_ylim([0,1])
+    axes[f].set_xticks(bins[1::2], x_axis[1::2])
+    axes[f].hlines(y =0.25,
+              xmin = bins[0]-1,
+              xmax = bins[-1]+1,
+              linestyles = 'dashed',
+              colors = 'black', 
+              linewidth = 2.0)
+
+
+# %% Archived code, save for later 
+
+# # %% plotting beta weights of all significant neurons 
+
+
+# fig, axes = plt.subplots(4,2,figsize = (10,10))
+# bins = np.arange(1,20)
+# # cmap3 = ['tab:orange','tab:green','tab:blue',]
+# cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue']
+# x_axis = bins*0.250
+# # for f in range(3):
+# #     axes[f,0].scatter(best_kernel[1][0,:],best_kernel[1][f+2,:],c = cmap3[f])
+# #     axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
+# #     axes[f,0].set_ylim([0,1])
+# #     axes[f,1].set_ylim([0,1])
+# #     axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
+# #     axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
+
+# for f in range(4):
+#     axes[f,0].scatter(best_kernel[0][0,:],best_kernel[0][f+2,:],c = cmap3[f])
+#     # axes[f,1].scatter(best_kernel[2][0,:],best_kernel[2][f+2,:],c = cmap3[f])
+#     axes[f,0].set_ylim([0,1])
+#     # axes[f,1].set_ylim([0,1])
+#     axes[f,0].set_xticks(bins[1::2], x_axis[1::2])
+#     # axes[f,1].set_xticks(bins[1::2], x_axis[1::2])
     
-#%% Plotting boxplot for each timewindow
-beta_time = {}
+# #%% Plotting boxplot for each timewindow
+# beta_time = {}
 
-for c_ind in [1,2]:
-    for f in range(3):
-        beta_time[f,c_ind] = [];
-        weight_thresh = 0.1
-        for b in bins:
-            ind = best_kernel[c_ind][0,:] == b
-            ind2 = best_kernel[c_ind][f+2,ind] > weight_thresh
-            beta_time[f,c_ind].append(best_kernel[c_ind][f+2,ind][ind2])
-
-
-fig, axes = plt.subplots(3,2,figsize = (10,10))
+# for c_ind in [1,2]:
+#     for f in range(3):
+#         beta_time[f,c_ind] = [];
+#         weight_thresh = 0.1
+#         for b in bins:
+#             ind = best_kernel[c_ind][0,:] == b
+#             ind2 = best_kernel[c_ind][f+2,ind] > weight_thresh
+#             beta_time[f,c_ind].append(best_kernel[c_ind][f+2,ind][ind2])
 
 
-for c_ind in [1,2]:
-    for f in range(3):
-        medianprops = dict(linestyle='-.', linewidth=2.5, color=cmap3[f])
-        axes[f,c_ind-1].boxplot(beta_time[f,c_ind],medianprops= medianprops)
-        axes[f,c_ind-1].set_xticks(bins[1::2], x_axis[1::2])
-        axes[f,c_ind-1].set_ylim(0,1)
+# fig, axes = plt.subplots(3,2,figsize = (10,10))
 
 
-axes[0,0].set_title('Rule1')
-axes[0,1].set_title('Rule2')
+# for c_ind in [1,2]:
+#     for f in range(3):
+#         medianprops = dict(linestyle='-.', linewidth=2.5, color=cmap3[f])
+#         axes[f,c_ind-1].boxplot(beta_time[f,c_ind],medianprops= medianprops)
+#         axes[f,c_ind-1].set_xticks(bins[1::2], x_axis[1::2])
+#         axes[f,c_ind-1].set_ylim(0,1)
 
-# plt.hist(best_kernel[1][0,:],bins)
+
+# axes[0,0].set_title('Rule1')
+# axes[0,1].set_title('Rule2')
+
+# # plt.hist(best_kernel[1][0,:],bins)
 
 
 
