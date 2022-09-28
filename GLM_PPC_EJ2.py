@@ -42,8 +42,8 @@ from sklearn.model_selection import ShuffleSplit
 
 # change fname for filename
 
-# fname = 'GLM_dataset_AC_new.mat'
-fname = 'GLM_dataset_220824_new.mat'
+fname = 'GLM_dataset_AC_new.mat'
+# fname = 'GLM_dataset_220824_new.mat'
 
 np.seterr(divide = 'ignore') 
 def load_matfile(dataname = fname):
@@ -84,13 +84,12 @@ This function runs GLM for each neuron n
         
 """
 
-def glm_per_neuron(n,t_period,window,k,c_ind): 
+def glm_per_neuron(n,t_period,prestim,window,k,c_ind): 
     D_ppc = load_matfile()
     S_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
     N_trial = np.size(D_ppc[n,2],0)
     
     
-    prestim = 1000
     
     
     # extracting spikes from data
@@ -268,6 +267,8 @@ def glm_per_neuron(n,t_period,window,k,c_ind):
         
 
 t_period = 4500
+prestim = 1000
+
 window = 50 # averaging firing rates with this window 
 window2 = 500
 k = 100 # number of cv
@@ -286,7 +287,7 @@ for c_ind in c_list:
     for n in good_list:
         n = int(n)
         try:
-            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, window,k,c_ind)
+            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
             Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}   
         except:
             print("Error, probably not enough trials") 
@@ -360,7 +361,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
         n = int(n)
         mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
-        if bs > weight_thresh and bs<60*1e-2:
+        if bs > weight_thresh:
             best_kernel[c_ind][0,k] = int(mi)
             best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
             best_kernel[c_ind][2,k] = norm_coef[0] 
@@ -379,6 +380,9 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
     return best_kernel
 
 weight_thresh = 0.5*1e-2
+
+
+# Here we define the time period for model analysis. 
 # ana_period = np.array([1000, 1500]) # (Stimulus presentation period)
 # ana_period = np.array([1500, 2500])
 # ana_period = np.array([2500, 4500])
@@ -488,8 +492,10 @@ rule1_VS_rule2(good_list, best_kernel)
 
 # %% Analyzing weights across time. This code is mostly for c_ind = 0
 
-bins = np.arange(21)
-count_sig = np.zeros((1,21))
+binsize = (t_period+prestim)/(window2/2)-1
+
+bins = np.arange(int(binsize))
+count_sig = np.zeros((1,int(binsize)))
 
 for c_ind in c_list:
     for n in good_list:
@@ -499,7 +505,7 @@ for c_ind in c_list:
             if mean_score[0,b] > weight_thresh:
                 count_sig[0,b] += 1
                 
-x_axis = bins*0.250 -1  
+x_axis = bins*window2*1e-3/2 -1  
 count_sig = count_sig/np.size(good_list)*1e2              
 plt.plot(x_axis,count_sig[0])
 
@@ -514,9 +520,9 @@ ax1.set_ylim([0,70])
 fig, axes = plt.subplots(4,1,figsize = (5,10))
 bins = np.arange(1,20)
 cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue']
-x_axis = bins*0.250
+x_axis = bins*window2*1e-3/2
 
-ana_period = np.array([0, 4500])
+# ana_period = np.array([0, 4500])
 
 for c_ind in [0]:
     if c_ind == 0:
