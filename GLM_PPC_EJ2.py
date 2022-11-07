@@ -43,7 +43,7 @@ from os.path import join as pjoin
 
 # change fname for filename
 
-fname = 'CaData4GLM_PPCIC_new.mat'
+fname = 'CaData4GLM_PPCAC_new.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -188,9 +188,15 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
         elif c_ind ==2:
             r_ind = np.arange(200,np.size(X,0))
         
+        
+        # Adding previous trial correct vs wrong
+        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
+        Xpre = Xpre[:,None]
+        X = np.concatenate((X,Xpre),1)
+        
         Y = Y[r_ind,:]
         X = X[r_ind,:]
-        X = X[:,1:4]  
+        X = X[:,1:]  
         
         
     return X,Y 
@@ -465,6 +471,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
             if c_ind ==0:
                 best_kernel[c_ind][5,k] = norm_coef[3]
             elif c_ind == -1:
+                best_kernel[c_ind][5,k] = norm_coef[3]
                 best_kernel[c_ind][6,k] = norm_coef[4]
             # best_kernel[(c_ind-1)*c_ind,k] = int(mi)
             # best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
@@ -474,7 +481,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
         
     return best_kernel
 
-weight_thresh = 1*1e-2
+weight_thresh = 2*1e-2
 
 
 # Here we define the time period for model analysis. 
@@ -585,9 +592,11 @@ def rule1_VS_rule2(good_list,best_kernel):
 
 # plotting piecharts
 # pie_all_rules(best_kernel)
+
+
 # rule1_VS_rule2(good_list, best_kernel)
 
-# %% Analyzing rxplained variance across time. This code is mostly for c_ind = 0
+# %% Analyzing explained variance across time. This code is mostly for c_ind = 0
 
 binsize = (t_period+prestim)/(window2/2)-1
 
@@ -649,6 +658,78 @@ for f in range(ax_sz):
               linestyles = 'dashed',
               colors = 'black', 
               linewidth = 2.0)
+
+
+# %% Calculating number/fraction of neurons with significant coding for each task variable
+
+if c_ind == 0:
+    ax_sz = 4
+    
+elif c_ind == -1:
+    ax_sz = 5
+
+Frac= {}
+Frac2 = {}
+Frac = np.zeros((99,ax_sz))
+Frac2 = np.zeros((99,ax_sz))
+
+for n in good_list:
+    Model_coef= Data[n,c_ind-1]["coef"]
+    Model_score = Data[n,c_ind-1]["score"]
+    
+    for b_ind in np.arange(np.size(Model_coef,0)):
+        SD = np.std(Model_coef[b_ind,0:10])
+        coef_bi = np.abs(Model_coef[b_ind,11:] - np.mean(Model_coef[b_ind,0:10])) > 4*SD
+        score_bi = np.mean(Model_score[11:,:],1) > weight_thresh
+        test = coef_bi*score_bi
+        Frac[:,b_ind] = Frac[:,b_ind] + test
+        
+        SD2 = np.std(Model_coef[b_ind,-10:])
+        coef_bi2 = np.abs(Model_coef[b_ind,0:-11] - np.mean(Model_coef[b_ind,-10:])) > 4*SD
+        score_bi2 = np.mean(Model_score[0:-11,:],1) > weight_thresh
+        test2 = coef_bi2*score_bi2
+        Frac2[:,b_ind] = Frac2[:,b_ind] + test2
+                
+
+
+        
+Frac = Frac/np.size(good_list)
+Frac2 = Frac2/np.size(good_list)
+
+
+fig, axes = plt.subplots(2,1,figsize = (10,12))
+cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
+
+x_axis = np.arange(1, 4950, window)
+e_lines = np.array([0, 500, 500+1000, 2500+1000])
+e_lines = e_lines+500
+
+
+
+
+for f in range(ax_sz):
+    axes[0].plot(x_axis-500,Frac[:,f]*1e2,c = cmap3[f])
+
+axes[0].vlines(x=e_lines-500,
+            ymin=0,
+            ymax=50,
+            linestyles='dashed',
+            colors='black',
+            linewidth=2.0)
+
+axes[0].set_ylim([0,np.max(Frac)*1e2+5])
+
+for f in range(ax_sz):
+    axes[1].plot(x_axis-1000,Frac2[:,f]*1e2,c = cmap3[f])
+
+axes[1].vlines(x=e_lines-500,
+            ymin=0,
+            ymax=50,
+            linestyles='dashed',
+            colors='black',
+            linewidth=2.0)
+
+axes[1].set_ylim([0,np.max(Frac2)*1e2+5])
 
 
 # %% Archived code, save for later 
