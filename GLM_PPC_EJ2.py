@@ -21,6 +21,15 @@ Created on Thu Aug 25 11:35:38 2022
     Sep 27 2022
     Major overhaul of code, including comments and separating analysis between
     across all trials and rule1 vs rule2
+
+    
+    Nov 09 2022
+    C index determines how the code runs:
+         0          :   Runs without trial history, across all rules
+        -1          :   Runs with trial history, across all rules
+        [1,2]       :   Separates rule 1 and rule 2
+        [-3,-4]     :   Separates rule 1 and rule 2 but includes trial history
+    
 """
 
 # import packages 
@@ -359,7 +368,7 @@ k = 10 # number of cv
 ca = 1
 
 # define c index here, according to comments within the "glm_per_neuron" function
-c_list = [-3, -4]
+c_list = [-1]
 
 
 
