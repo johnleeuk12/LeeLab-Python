@@ -133,15 +133,14 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
         Xpre = Xpre[:,None]
         X = np.concatenate((X,Xpre),1)
     elif c_ind !=0 and c_ind !=3: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
-        if c_ind ==1:
+        if c_ind ==1 or c_ind ==-3:
             r_ind = np.arange(200)
-        elif c_ind ==2:
+        elif c_ind ==2 or c_ind ==-4:
             r_ind = np.arange(200,np.size(X,0))
         
         S = S[r_ind,:]
         X = X[r_ind,:]
-        X = X[:,1:4]  
-        
+        X = X[:,1:]
         
     for w in range(int(t_period/window)):
         y = np.mean(S[:,range(window*w,window*(w+1))],1)*1e3
@@ -183,9 +182,9 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
         Xpre = Xpre[:,None]
         X = np.concatenate((X,Xpre),1)
     elif c_ind !=0 and c_ind !=3: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
-        if c_ind ==1:
+        if c_ind ==1 or c_ind == -3:
             r_ind = np.arange(200)
-        elif c_ind ==2:
+        elif c_ind ==2 or c_ind == -4:
             r_ind = np.arange(200,np.size(X,0))
         
         
@@ -272,9 +271,12 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     elif c_ind == -1:
         cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
         clabels = ["contin","action","correct","stim","history"]
-    else:           
+    elif c_ind == 1 or c_ind ==2:
         cmap = ['tab:orange', 'tab:green','tab:blue']
-        clabels = ["action","correct","stim"]
+        clabels = ["action","correct","stim"]        
+    else:     # c_ind == -3 or c_ind == -4      
+        cmap = ['tab:orange', 'tab:green','tab:blue','tab:olive']
+        clabels = ["action","correct","stim","history"]
         
         
         
@@ -357,7 +359,7 @@ k = 10 # number of cv
 ca = 1
 
 # define c index here, according to comments within the "glm_per_neuron" function
-c_list = [-1]
+c_list = [-3, -4]
 
 
 
@@ -450,7 +452,10 @@ row 1       :   best ind
 row 2       :   best category [0 1 2 3 4 ] is ["Uncategorized", "Action", "Correct","Stimuli"]
 row 3 to 5  :   normalized weights for action, correct and stimuli
 
-when adding trial history, row 6 is trial history, with best category going up to 5 
+when adding contingency
+row 3 to 6  :   contingency, action, correct, stimuli
+
+when adding trial history, the last row is trial history, with best category going up to 5 
 """
 
 def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
@@ -468,13 +473,15 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
             best_kernel[c_ind][2,k] = norm_coef[0] 
             best_kernel[c_ind][3,k] = norm_coef[1]
             best_kernel[c_ind][4,k] = norm_coef[2]
-            if c_ind ==0:
+            if c_ind ==0: 
                 best_kernel[c_ind][5,k] = norm_coef[3]
             elif c_ind == -1:
                 best_kernel[c_ind][5,k] = norm_coef[3]
                 best_kernel[c_ind][6,k] = norm_coef[4]
             # best_kernel[(c_ind-1)*c_ind,k] = int(mi)
             # best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
+            elif c_ind == -3 or c_ind == -4:
+                best_kernel[c_ind][5,k] = norm_coef[3]
         else:
             best_kernel[c_ind][2:b_ind,k] = np.ones((1,b_ind-2))*-1    
         k = k+1
@@ -490,7 +497,7 @@ weight_thresh = 2*1e-2
 # ana_period = np.array([2500, 4500])
 ana_period = np.array([0, 4500])
 for c_ind in c_list:
-    if c_ind == 0:
+    if c_ind == 0 or c_ind ==-3 or c_ind == -4:
         b_ind = 6
     elif c_ind == -1:
         b_ind = 7
@@ -533,10 +540,13 @@ index:
     4   :   Maintained, Stim
     5   :   Maintained, Correct
     6   :   Maintained, Action
+    7   :   Maintained, Trial history
     
 
 """
-def rule1_VS_rule2(good_list,best_kernel):
+
+
+def rule1_VS_rule2(good_list,best_kernel, c_list):
 
     pool_kernel = np.zeros((1,np.size(good_list,0)))
     
@@ -546,11 +556,11 @@ def rule1_VS_rule2(good_list,best_kernel):
         #     pool_kernel[0,n] = 1
         # elif best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != best_kernel[1][1,n]: # Lost
         #     pool_kernel[0,n] = 2
-        if best_kernel[1][1,n] == 0 and best_kernel[2][1,n] != 0:
+        if best_kernel[c_list[0]][1,n] == 0 and best_kernel[c_list[1]][1,n] != 0: # 
             pool_kernel[0,n] = 1
-        elif best_kernel[2][1,n] == 0 and best_kernel[1][1,n] != 0:
+        elif best_kernel[c_list[1]][1,n] == 0 and best_kernel[c_list[0]][1,n] != 0:
             pool_kernel[0,n] = 2
-        elif best_kernel[1][1,n] != best_kernel[2][1,n] and best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != 0:
+        elif best_kernel[c_list[0]][1,n] != best_kernel[c_list[1]][1,n] and best_kernel[c_list[0]][1,n] != 0 and best_kernel[c_list[1]][1,n] != 0:
             # if best_kernel[1][1,n] == 1 and best_kernel[2][1,n] ==3:
             #     pool_kernel[0,n] = 4 # Action to stim
             # elif best_kernel[1][1,n] == 3 and best_kernel[2][1,n] ==1:
@@ -558,28 +568,39 @@ def rule1_VS_rule2(good_list,best_kernel):
             # else:
             pool_kernel[0,n] =3
                  
-        elif best_kernel[1][1,n] == best_kernel[2][1,n] and best_kernel[2][1,n] !=0 :
-            if best_kernel[1][1,n] == 3:
+        elif best_kernel[c_list[0]][1,n] == best_kernel[c_list[1]][1,n] and best_kernel[c_list[1]][1,n] !=0 :
+            if best_kernel[c_list[0]][1,n] == 3:
                 pool_kernel[0,n] = 4
-            elif best_kernel[1][1,n] == 1:
+            elif best_kernel[c_list[0]][1,n] == 1:
                 pool_kernel[0,n] = 6
-            else:
+            elif best_kernel[c_list[0]][1,n] == 2:
                 pool_kernel[0,n] = 5
+            elif best_kernel[c_list[0]][1,n] == 4:
+                pool_kernel[0,n] = 7
 
     # plot pie chart for categories
     
     fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))
     
-    pie_labels = ["Uncategorized", "Action", "Correct","Stimuli"]
-    cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue']
-    ax1.pie(np.bincount(best_kernel[1][1,:].astype(int)),labels = pie_labels, colors = cmap)
-    ax2.pie(np.bincount(best_kernel[2][1,:].astype(int)),labels = pie_labels, colors = cmap)
+    if c_list[0] > 0:
+        pie_labels = ["Uncategorized", "Action", "Correct","Stimuli"]
+        cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue']
+        pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
+                       "Stimuli","Correct","Action",]
+        cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
+                 'tab:blue','tab:green','tab:orange']
+    else:
+        pie_labels = ["Uncategorized", "Action", "Correct","Stimuli","History"]
+        cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue','tab:olive']
+        pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
+                       "Stimuli","Correct","Action","History"]
+        cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
+                 'tab:blue','tab:green','tab:orange','tab:olive']
+    ax1.pie(np.bincount(best_kernel[c_list[0]][1,:].astype(int)),labels = pie_labels, colors = cmap)
+    ax2.pie(np.bincount(best_kernel[c_list[1]][1,:].astype(int)),labels = pie_labels, colors = cmap)
     ax1.set_title('Rule1')
     ax2.set_title('Rule2')
-    pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
-                   "Stimuli","Correct","Action",]
-    cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
-             'tab:blue','tab:green','tab:orange']
+
     
     #  "Changed,other","Action to Stim","Stim to Action",
     #               'tab:brown',(0.5,1,1),(1,0,1),
@@ -594,7 +615,7 @@ def rule1_VS_rule2(good_list,best_kernel):
 # pie_all_rules(best_kernel)
 
 
-# rule1_VS_rule2(good_list, best_kernel)
+rule1_VS_rule2(good_list, best_kernel,c_list)
 
 # %% Analyzing explained variance across time. This code is mostly for c_ind = 0
 
