@@ -42,6 +42,8 @@ from scipy import stats
 from sklearn.linear_model import TweedieRegressor, Ridge, ElasticNet
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import ShuffleSplit
+from sklearn.decomposition import PCA, SparsePCA
+
 from os.path import join as pjoin
 
 # from matplotlib.colors import BoundaryNorm
@@ -52,7 +54,7 @@ from os.path import join as pjoin
 
 # change fname for filename
 
-fname = 'CaData4GLM_PPCAC_new.mat'
+fname = 'CaData4GLM_PPCACandIC_v2.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -89,9 +91,26 @@ def find_good_data():
     return good_list
 
 
-def find_good_data_Ca():
+def find_good_data_Ca(t_period):
     D_ppc = load_matfile_Ca()
-    good_list = np.arange(np.size(D_ppc,0))
+    # good_list = np.arange(np.size(D_ppc,0))
+    good_list = []
+    t_period = t_period+prestim
+
+    for n in range(np.size(D_ppc,0)):
+        N_trial = np.size(D_ppc[n,2],0)
+    
+    
+    # re-formatting Ca traces
+    
+        Y = np.zeros((N_trial,int(t_period/window)))
+        for tr in range(N_trial):
+            Y[tr,:] = D_ppc[n,0][0,D_ppc[n,2][tr,0]-1 
+                                 - int(prestim/window): D_ppc[n,2][tr,0] 
+                                 + int(t_period/window)-1 - int(prestim/window)]
+        if np.mean(Y) > 0.5:
+            good_list = np.concatenate((good_list,[n]))
+    
     
     return good_list
 
@@ -377,7 +396,7 @@ if ca ==0:
     good_list = find_good_data()
 else:
     D_ppc = load_matfile_Ca()
-    good_list = find_good_data_Ca()
+    good_list = find_good_data_Ca(t_period)
 
 
 Data = {}
@@ -396,7 +415,7 @@ for c_ind in c_list:
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
             X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score}   
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y}   
             t += 1
             # print(t,"/",len(good_list))
             good_list2 = np.concatenate((good_list2,[n]))
@@ -476,6 +495,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
         n = int(n)
         mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
+        # Y_mean = np.mean(Data[n,c_ind-1]["Y"])
         if bs > weight_thresh:
             best_kernel[c_ind][0,k] = int(mi)
             best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
@@ -497,11 +517,11 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
         
     return best_kernel
 
-weight_thresh = 2*1e-2
+weight_thresh = 1*1e-2
 
 
 # Here we define the time period for model analysis. 
-# ana_period = np.array([1000, 1500]) # (Stimulus presentation period)
+# ana_period = np.array([2000, 4000]) # (Stimulus presentation period)
 # ana_period = np.array([1500, 2500])
 # ana_period = np.array([2500, 4500])
 ana_period = np.array([0, 4500])
@@ -702,23 +722,27 @@ Frac= {}
 Frac2 = {}
 Frac = np.zeros((99,ax_sz))
 Frac2 = np.zeros((99,ax_sz))
+Fthresh = 10;
 
-for n in good_list:
-    Model_coef= Data[n,c_ind-1]["coef"]
-    Model_score = Data[n,c_ind-1]["score"]
-    
-    for b_ind in np.arange(np.size(Model_coef,0)):
-        SD = np.std(Model_coef[b_ind,0:10])
-        coef_bi = np.abs(Model_coef[b_ind,11:] - np.mean(Model_coef[b_ind,0:10])) > 4*SD
-        score_bi = np.mean(Model_score[11:,:],1) > weight_thresh
-        test = coef_bi*score_bi
-        Frac[:,b_ind] = Frac[:,b_ind] + test
-        
-        SD2 = np.std(Model_coef[b_ind,-10:])
-        coef_bi2 = np.abs(Model_coef[b_ind,0:-11] - np.mean(Model_coef[b_ind,-10:])) > 4*SD
-        score_bi2 = np.mean(Model_score[0:-11,:],1) > weight_thresh
-        test2 = coef_bi2*score_bi2
-        Frac2[:,b_ind] = Frac2[:,b_ind] + test2
+
+for n in np.arange(np.size(good_list,0)):
+    # n = int(n)
+    nn = good_list[n]
+    Model_coef= Data[nn,c_ind-1]["coef"]
+    Model_score = Data[nn,c_ind-1]["score"]
+    if best_kernel[c_ind][1,n] >0:
+        for b_ind in np.arange(np.size(Model_coef,0)):
+            SD = np.std(Model_coef[b_ind,0:10])
+            coef_bi = np.abs(Model_coef[b_ind,11:] - np.mean(Model_coef[b_ind,0:10])) > Fthresh*SD
+            score_bi = np.mean(Model_score[11:,:],1) > weight_thresh
+            test = coef_bi*score_bi
+            Frac[:,b_ind] = Frac[:,b_ind] + test
+            
+            SD2 = np.std(Model_coef[b_ind,-10:])
+            coef_bi2 = np.abs(Model_coef[b_ind,0:-11] - np.mean(Model_coef[b_ind,-10:])) > Fthresh*SD
+            score_bi2 = np.mean(Model_score[0:-11,:],1) > weight_thresh
+            test2 = coef_bi2*score_bi2
+            Frac2[:,b_ind] = Frac2[:,b_ind] + test2
                 
 
 
@@ -761,7 +785,201 @@ axes[1].vlines(x=e_lines-500,
 
 axes[1].set_ylim([0,np.max(Frac2)*1e2+5])
 
+# %% Normalized population average of task variable weights
 
+if c_ind == 0:
+    ax_sz = 4
+    
+elif c_ind == -1:
+    ax_sz = 5
+    
+Convdata = {}
+
+for b_ind in np.arange(ax_sz):
+    Convdata[b_ind] = np.zeros((np.size(good_list),np.size(score,0)))
+    
+for n in np.arange(np.size(good_list,0)):
+    # n = int(n)
+    nn = good_list[n]
+    Model_coef = Data[nn, c_ind-1]["coef"]
+    Model_score = Data[nn, c_ind-1]["score"]
+
+    Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+    norm_score = np.mean(Model_score, 1)
+    norm_score[norm_score < weight_thresh] = 0
+    if np.max(norm_score)>0:
+        norm_score = norm_score/np.max(norm_score)
+    else:
+        norm_score = 0    
+    conv = Model_coef*norm_score
+    for b_ind in np.arange(np.size(Model_coef, 0)):
+        Convdata[b_ind][n, :] = conv[b_ind, :]
+
+
+x_axis = np.arange(1, 5500, window)
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+
+for f in range(ax_sz):
+        error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list))
+        y = ndimage.gaussian_filter(np.mean(Convdata[f],0),1)
+        axes.plot(x_axis*1e-3-1,y,c = cmap3[f])
+        axes.fill_between(x_axis*1e-3-1,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
+
+
+e_lines = np.array([0, 500, 500+1000, 2500+1000])
+e_lines = e_lines+500
+
+# %% PCA
+fig, axs = plt.subplots(5,6,figsize = (20,20))
+pca = {};
+for f in np.arange(ax_sz):
+    # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
+    pca[f] = PCA(n_components=20) 
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f].T,[1,0]))
+    
+    test = test.T
+    for t in range(5):
+        axs[f,t].plot(test[t,:],c = cmap3[f])
+    axs[f,5].plot(np.cumsum(pca[f].explained_variance_ratio_))
+
+
+Overlap = np.zeros((ax_sz,ax_sz))
+
+# for f in np.arange(ax_sz): #reference
+#     V_cap1 = 1-np.linalg.norm(Convdata[f].T- 
+#                              np.dot(np.dot(Convdata[f].T,pca[f].components_.T),pca[f].components_))/np.linalg.norm(Convdata[f].T)
+
+#     for f2 in np.arange(ax_sz): #comparison 
+#         V_cap2 = 1-np.linalg.norm(Convdata[f].T- 
+#                                  np.dot(np.dot(Convdata[f].T,pca[f2].components_.T),pca[f2].components_))/np.linalg.norm(Convdata[f].T)
+#         Overlap[f,f2] = V_cap2/V_cap1
+               
+
+for f in np.arange(ax_sz):
+    for f2 in np.arange(ax_sz):
+        Overlap[f,f2] = np.max(np.dot(pca[f].components_, pca[f2].components_.T))
+                        
+fig, ax = plt.subplots(figsize = (10,10))
+
+ax.imshow(Overlap, cmap='viridis')
+
+
+# %% Saving files
+
+np.save('pca_PPCallv2.npy',pca)
+np.save('Data_PPCallv2.npy', Data)
+# pca_IC = np.load('pca_PPCIC.npy',allow_pickle=True).item()
+# ax.set_title('pcolormesh')
+# # set the limits of the plot to the limits of the data
+# ax.clim(0, 1)
+# ax.colorbar()
+
+# %%  plot PC scatter
+
+fig, axes = plt.subplots(5,2, figsize = (15,30))
+
+color_ind = good_list<141
+
+for f in np.arange(ax_sz):
+    axes[f,0].scatter(pca[f].components_[0,:],pca[f].components_[1,:],s = 15, c= color_ind, cmap = 'bwr')
+    axes[f,0].vlines(0,-0.3,0.3,linestyles = 'dashed')
+    axes[f,0].hlines(0,-0.3,0.3,linestyles = 'dashed')
+
+    # axes[f,0].axis([-abs(np.max(pca[f].components_[0,:])),abs(np.max(pca[f].components_[0,:])), -abs(np.max(pca[f].components_[1,:])),abs(np.max(pca[f].components_[1,:])) ])
+    axes[f,1].scatter(pca[f].components_[1,:],pca[f].components_[2,:],s = 15, c= color_ind, cmap ='bwr')
+    axes[f,1].vlines(0,-0.3,0.3,linestyles = 'dashed')
+    axes[f,1].hlines(0,-0.3,0.3,linestyles = 'dashed')
+    
+    
+# test2 = pca[4].components_[0,color_ind]
+# test3 = pca[4].components_[0,good_list >141]
+
+# fig, ax = plt.subplots(2,1,figsize = (10,10))
+
+# ax[0].hist(test2, bins = np.arange(-0.4,0.4+0.01,0.01))
+# ax[1].hist(test3, bins = np.arange(-0.4,0.4+0.01,0.01))    
+f = 0
+
+
+
+# %% PCA comparison of subspace overlap
+
+d_list = good_list > 179
+
+d_list3 = good_list <= 179
+cv_ind = 20
+
+V_cap1_all = np.zeros((5,5,cv_ind))
+V_cap2_all = np.zeros((5,5,cv_ind))
+for cv in np.arange(cv_ind):
+    rand_sample = np.random.randint(2, size=np.size(good_list))
+    rand_sample = np.array(rand_sample, dtype = bool)
+    
+    d_list1 = d_list*rand_sample
+    d_list11 = d_list*np.invert(rand_sample)
+
+
+    d_list2 = d_list3*rand_sample
+    d_list22 = d_list3*np.invert(rand_sample)
+    
+    ref_ind = 1
+    comp_ind = 0
+    V_cap1 = np.zeros((5,5))
+    V_cap11 = np.zeros((5,5))
+    V_cap2 = np.zeros((5,5))
+    V_cap22 = np.zeros((5,5))
+    
+    for f  in np.arange(ax_sz): 
+        for ref_ind in np.arange(5):
+            R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
+            V_cap1[f,ref_ind] = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],
+                                                                  pca[f].components_[ref_ind,d_list1].T.reshape(-1,1)),
+                                                                    pca[f].components_[ref_ind,d_list1].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list1])
+            
+            V_cap11[f,ref_ind] = 1-np.linalg.norm(R[:,d_list11] - np.dot(np.dot(R[:,d_list11],
+                                                                  pca[f].components_[ref_ind,d_list11].T.reshape(-1,1)),
+                                                                    pca[f].components_[ref_ind,d_list11].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list11])
+            
+            V_cap2[f,ref_ind] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
+                                                                  pca[f].components_[ref_ind,d_list2].T.reshape(-1,1)),
+                                                                    pca[f].components_[ref_ind,d_list2].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list2])
+            
+            V_cap22[f,ref_ind] = 1-np.linalg.norm(R[:,d_list22] - np.dot(np.dot(R[:,d_list22],
+                                                                  pca[f].components_[ref_ind,d_list22].T.reshape(-1,1)),
+                                                                    pca[f].components_[ref_ind,d_list22].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list22])
+            
+            
+    V_cap1 = V_cap1 + V_cap11
+    V_cap2 = V_cap2 + V_cap22
+      
+    
+    V_cap1 = V_cap1.T*(1/np.sum(V_cap1,axis = 1))
+    V_cap1_all[:,:,cv] = V_cap1.T
+    
+    V_cap2 = V_cap2.T*(1/np.sum(V_cap2,axis = 1))
+    V_cap2_all[:,:,cv] = V_cap2.T
+    
+    
+
+V_cap3 = 1-np.linalg.norm(R-np.dot(np.dot(R,pca[f].components_[ref_ind,:].T.reshape(-1,1)),
+                                    pca[f].components_[ref_ind,:].reshape(1,-1)))/np.linalg.norm(R)
+
+# %% PCA angle difference?
+
+# ref_ind = 2
+# comp_ind = 0
+# angle1 = np.dot(pca_all[4].components_[ref_ind,d_list], pca_AC[4].components_[comp_ind,:])
+# angle2 = np.dot(pca_all[4].components_[ref_ind,d_list2], pca_IC[4].components_[comp_ind,:])
+
+A = {}
+for f in np.arange(ax_sz):
+    A[f] = np.zeros((2,4))
+    for ref_ind in [0,1]:
+        for comp_ind in [0,1]:
+            A[f][ref_ind,comp_ind] = np.dot(pca_all[f].components_[ref_ind,d_list], pca_AC[f].components_[comp_ind,:])
+            A[f][ref_ind,comp_ind+2] = np.dot(pca_all[f].components_[ref_ind,d_list2], pca_IC[f].components_[comp_ind,:])
+    A[f] = np.abs(A[f])
+    
 # %% Archived code, save for later 
 
 # # %% plotting beta weights of all significant neurons 
