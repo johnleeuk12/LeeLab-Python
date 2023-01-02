@@ -35,6 +35,7 @@ Created on Thu Aug 25 11:35:38 2022
 # import packages 
 
 import numpy as np
+
 import matplotlib.pyplot as plt
 from scipy.io import loadmat
 from scipy import ndimage
@@ -824,6 +825,7 @@ for f in range(ax_sz):
         y = ndimage.gaussian_filter(np.mean(Convdata[f],0),1)
         axes.plot(x_axis*1e-3-1,y,c = cmap3[f])
         axes.fill_between(x_axis*1e-3-1,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
+        axes.set_ylim([0,0.27])
 
 
 e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -831,11 +833,16 @@ e_lines = e_lines+500
 
 # %% PCA
 fig, axs = plt.subplots(5,6,figsize = (20,20))
+
+d_list = good_list > 179
+
+d_list3 = good_list <= 179
+
 pca = {};
 for f in np.arange(ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
     pca[f] = PCA(n_components=20) 
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f].T,[1,0]))
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[1,0]))
     
     test = test.T
     for t in range(5):
@@ -907,11 +914,32 @@ f = 0
 d_list = good_list > 179
 
 d_list3 = good_list <= 179
-cv_ind = 20
+
+
+cv_ind = 50
 
 V_cap1_all = np.zeros((5,5,cv_ind))
 V_cap2_all = np.zeros((5,5,cv_ind))
 for cv in np.arange(cv_ind):
+    
+    d_list = good_list > 179
+    
+    d_list3 = good_list <= 179
+        # 20% shuffle
+
+    for s in np.arange(np.size(good_list)):
+        if d_list[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.75,0.25])
+            if shuffle == 1:
+                d_list[s] = False
+        
+        if d_list3[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.75,0.25])
+            if shuffle == 1:
+                d_list3[s] = False
+
+
+    
     rand_sample = np.random.randint(2, size=np.size(good_list))
     rand_sample = np.array(rand_sample, dtype = bool)
     
@@ -949,6 +977,8 @@ for cv in np.arange(cv_ind):
                                                                     pca[f].components_[ref_ind,d_list22].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list22])
             
             
+            
+            
     V_cap1 = V_cap1 + V_cap11
     V_cap2 = V_cap2 + V_cap22
       
@@ -963,6 +993,94 @@ for cv in np.arange(cv_ind):
 
 V_cap3 = 1-np.linalg.norm(R-np.dot(np.dot(R,pca[f].components_[ref_ind,:].T.reshape(-1,1)),
                                     pca[f].components_[ref_ind,:].reshape(1,-1)))/np.linalg.norm(R)
+
+
+
+
+# PCA subspace overlap, stat tests
+
+
+fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
+
+x_pos = [1,2]
+for f in np.arange(ax_sz):
+    
+    for pc in [0,1]:
+        [s,p] = stats.ttest_ind(V_cap1_all[f,pc,:],V_cap2_all[f,pc,:],equal_var = False)
+        PCmean = [np.mean(V_cap1_all[f,pc,:]),np.mean(V_cap2_all[f,pc,:])]
+        PCerr = [np.std(V_cap1_all[f,pc,:]),np.std(V_cap2_all[f,pc,:])]
+        axes[f,pc].bar(x_pos, PCmean, yerr=PCerr, align='center', alpha=0.5, color = cmap3[f], ecolor='black', capsize=10)
+        axes[f,pc].set_xticks(x_pos)
+        axes[f,pc].set_xticklabels(['PPC_AC', 'PPC_IC'])
+        axes[f,pc].set_ylim([0,1])
+        
+        if pc ==1:
+            axes[f,pc].get_yaxis().set_visible(False)
+        
+        if p < 0.001:
+            # axes[f,pc].scatter([1.5], [0.75], marker = '*')
+            axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
+        if p >0.001 and p<0.01:
+            axes[f,pc].scatter([1.45,1.55], [0.75,0.75], marker = '*')
+        # if p <0.001:
+        #     axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
+        # if 0.001< pc<0.01:
+        #     axes[f,pc].scatter([1.5,1.6], [0.75,0.75], marker = '*')
+        # if 0.01 <pc < 0.05:
+        #     axes[f,pc].scatter([1.5], [0.75], marker = '*')
+
+
+
+# %% Calculate explained variance by each subspace across time
+xtime = np.arange(110)*50*1e-3-1
+
+
+d_list1 = good_list > 179
+d_list2 = good_list < 179
+V_cap1  =np.zeros((5,110))
+V_cap2  =np.zeros((5,110))
+
+V_cap1_base = np.zeros((5,20))
+V_cap2_base = np.zeros((5,20))
+
+fig, axes = plt.subplots(5,1,figsize = (5,10))
+for f  in np.arange(ax_sz): 
+    R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
+    
+    for cv in np.arange(20):
+        r_shuffle = np.arange(298)
+        np.random.shuffle(r_shuffle)
+        R2 = R[:,r_shuffle]
+        V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_.T),
+                                                                pca[f].components_))/np.linalg.norm(R2)
+        
+        # V_cap2_base[f,cv] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
+        #                                                       pca[f].components_[:,d_list2].T),
+        #                                                         pca[f].components_[:,d_list2]))/np.linalg.norm(R[:,d_list2])
+        
+    for t in np.arange(110):    
+        V_cap1[f,t] = 1-np.linalg.norm(R[t,d_list1] - np.dot(np.dot(R[t,d_list1],
+                                                              pca[f].components_[:,d_list1].T),
+                                                                pca[f].components_[:,d_list1]))/np.linalg.norm(R[t,d_list1])
+        V_cap2[f,t] = 1-np.linalg.norm(R[t,d_list2] - np.dot(np.dot(R[t,d_list2],
+                                                              pca[f].components_[:,d_list2].T),
+                                                                pca[f].components_[:,d_list2]))/np.linalg.norm(R[t,d_list2])
+
+    
+
+    axes[f].plot(xtime, V_cap1[f,:],c = cmap3[f],linestyle = 'solid')
+    axes[f].plot(xtime, V_cap2[f,:],c = cmap3[f],linestyle = 'dotted')
+    
+    
+    y =np.mean(V_cap1_base[f,:])
+    error = np.std(V_cap1_base[f,:])
+    axes[f].hlines(y, 
+              xmin = min(xtime), 
+              xmax = max(xtime),
+              linestyles = 'dashed',
+              colors = 'black', 
+              linewidth = 2.0)
+    # axes[f].fill_between(np.arange(110),y-error,y+error,facecolor = 'black',alpha = 0.3)
 
 # %% PCA angle difference?
 
@@ -980,6 +1098,101 @@ for f in np.arange(ax_sz):
             A[f][ref_ind,comp_ind+2] = np.dot(pca_all[f].components_[ref_ind,d_list2], pca_IC[f].components_[comp_ind,:])
     A[f] = np.abs(A[f])
     
+    
+    
+# %% PCA Trajectories
+
+
+
+from mpl_toolkits import mplot3d
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+d_list1 = good_list > 179
+
+d_list3 = good_list <= 179
+
+
+def draw_traj(traj):
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+    styles = ['solid', 'solid', 'solid','dotted']
+    cmap_names = ['summer','autumn','winter','summer']
+    for tr in [0,1,2,3]:
+        x = traj[f][tr][:,0]
+        y = traj[f][tr][:,1]
+        z = traj[f][tr][:,2]
+        time = np.arange(len(x))
+        points = np.array([x, y, z]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    
+        
+    
+        
+        # norm = plt.Normalize(time.min(), time.max())
+        cmap=plt.get_cmap(cmap_names[tr])
+        # colors=[cmap(float(ii)/(n-1)) for ii in range(np.size(segments,0))]
+        
+        
+        norm = BoundaryNorm([0,19,29,49,89,109],cmap.N)
+        lc = Line3DCollection(segments, cmap=cmap_names[tr], norm=norm,linestyle = styles[0])
+        lc.set_array(time)
+        lc.set_linewidth(2)
+        ax.add_collection3d(lc)
+        
+        if tr ==0:
+            ax.auto_scale_xyz(x,y,z)
+        # fig.colorbar(line, ax=axs[0])
+    ax.set_xlabel('PC1')
+    ax.set_ylabel('PC2')
+    ax.set_zlabel('PC3')
+
+# %%
+
+fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
+
+xtime = np.arange(110)*5*1e-3-1e3
+for f in np.arange(ax_sz):
+    R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
+    
+    traj = {}
+    traj[f] = {}
+    # traj[f][0] = pca[f].fit_transform(R)
+    traj[f][0] = np.dot(R,pca[f].components_.T)                                   
+    traj[f][1] = np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
+    traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
+    traj[f][3] = traj[f][1] + traj[f][2]
+
+    draw_traj(traj)
+    distance = {}
+    distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
+    distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
+    
+    
+    axes[f,0].plot(xtime,distance[0], linestyle = 'solid')
+    axes[f,0].plot(xtime,distance[1], linestyle = 'dashed')
+ 
+    axes[f,1].plot(xtime,distance[0]-(distance[0]+distance[1])/2, linestyle = 'solid')
+    axes[f,1].plot(xtime,distance[1]-(distance[0]+distance[1])/2, linestyle = 'dashed')   
+    
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    # ax.plot3D(traj[f][0][:,0],traj[f][0][:,1],traj[f][0][:,2],color = cmap3[f],label = 'All')
+    # ax.plot3D(traj[f][1][:,0],traj[f][1][:,1],traj[f][1][:,2],color = cmap3[f], 
+    #           linestyle = 'dashed', label = 'PPC_AC')
+    # ax.plot3D(traj[f][2][:,0],traj[f][2][:,1],traj[f][2][:,2],color = cmap3[f], 
+    #           linestyle = 'dotted', label = 'PPC_IC')
+    
+    # ax.set_xlabel('PC1')
+    # ax.set_ylabel('PC2')
+    # ax.set_zlabel('PC3')
+    # ax.legend(loc = 'upper right')
+    
+
+
+
+
+
 # %% Archived code, save for later 
 
 # # %% plotting beta weights of all significant neurons 
