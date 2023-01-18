@@ -869,6 +869,7 @@ for f in np.arange(ax_sz):
     for t in range(5):
         axs[f,t].plot(test[t,:],c = cmap3[f])
     axs[f,5].plot(np.cumsum(pca[f].explained_variance_ratio_))
+    plt.savefig("test.svg", format = 'svg')
 
 
 Overlap = np.zeros((ax_sz,ax_sz))
@@ -887,9 +888,9 @@ for f in np.arange(ax_sz):
     for f2 in np.arange(ax_sz):
         Overlap[f,f2] = np.max(np.dot(pca[f].components_, pca[f2].components_.T))
                         
-fig, ax = plt.subplots(figsize = (10,10))
+# fig, ax = plt.subplots(figsize = (10,10))
 
-ax.imshow(Overlap, cmap='viridis')
+# ax.imshow(Overlap, cmap='viridis')
 
 
 # %% Saving files
@@ -1096,7 +1097,7 @@ for f  in np.arange(ax_sz):
                 if shuffle == 1:
                     d_list2[s] = False
      
-        # d_list1 = good_list >0
+        d_list1 = good_list >0
         # V_cap2_base[f,cv] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
         #                                                       pca[f].components_[:,d_list2].T),
         #                                                         pca[f].components_[:,d_list2]))/np.linalg.norm(R[:,d_list2])
@@ -1113,10 +1114,10 @@ for f  in np.arange(ax_sz):
     
     
     axes[f].plot(xtime, np.mean(V_cap1[f,:,:],1),c = cmap3[f],linestyle = 'solid')
-    axes[f].fill_between(xtime,np.mean(V_cap1[f,:,:],1)- np.std(V_cap1[f,:,:],1),np.mean(V_cap1[f,:,:],1)+ np.std(V_cap1[f,:,:],1),facecolor = cmap3[f],alpha = 0.3)
+    axes[f].fill_between(xtime,np.mean(V_cap1[f,:,:],1)- np.std(V_cap1[f,:,:],1),np.mean(V_cap1[f,:,:],1)+ np.std(V_cap1[f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
 
     axes[f].plot(xtime, np.mean(V_cap2[f,:,:],1),c = cmap3[f],linestyle = 'dotted')
-    axes[f].fill_between(xtime,np.mean(V_cap2[f,:,:],1)- np.std(V_cap2[f,:,:],1),np.mean(V_cap2[f,:,:],1)+ np.std(V_cap2[f,:,:],1),facecolor = cmap3[f],alpha = 0.3)
+    axes[f].fill_between(xtime,np.mean(V_cap2[f,:,:],1)- np.std(V_cap2[f,:,:],1),np.mean(V_cap2[f,:,:],1)+ np.std(V_cap2[f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
 
 
     y =np.mean(V_cap1_base[f,:])
