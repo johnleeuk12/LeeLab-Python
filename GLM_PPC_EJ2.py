@@ -555,6 +555,15 @@ for c_ind in c_list:
 # %% plot piechart for all trials
 
 def pie_all_rules(best_kernel): 
+    
+    # d_list = good_list > 179
+
+    # d_list3 = good_list <= 179
+
+    # good_list_sep = np.int_(good_list[d_list])
+
+    
+    
     if c_ind == 0:
         pie_labels = ["Uncategorized", "Contingency", "Action", "Correct","Stimuli"]
         cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:green','tab:blue']
@@ -806,6 +815,12 @@ axes[1].set_ylim([0,np.max(Frac2)*1e2+5])
 
 # %% Normalized population average of task variable weights
 
+d_list = good_list > 179
+
+d_list3 = good_list <= 179
+
+good_list_sep = good_list
+
 
 
 if c_ind == 0 or c_ind == -2:
@@ -817,11 +832,11 @@ elif c_ind == -1:
 Convdata = {}
 
 for b_ind in np.arange(ax_sz):
-    Convdata[b_ind] = np.zeros((np.size(good_list),np.size(score,0)))
+    Convdata[b_ind] = np.zeros((np.size(good_list_sep),np.size(score,0)))
     
-for n in np.arange(np.size(good_list,0)):
+for n in np.arange(np.size(good_list_sep,0)):
     # n = int(n)
-    nn = good_list[n]
+    nn = good_list_sep[n]
     Model_coef = Data[nn, c_ind-1]["coef"]
     Model_score = Data[nn, c_ind-1]["score"]
 
@@ -841,7 +856,7 @@ x_axis = np.arange(1, prestim+t_period, window)
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 
 for f in range(ax_sz):
-        error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list))
+        error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list_sep))
         y = ndimage.gaussian_filter(np.mean(Convdata[f],0),1)
         axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
         axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
@@ -857,6 +872,7 @@ fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
 d_list = good_list > 179
 
 d_list3 = good_list <= 179
+
 
 pca = {};
 for f in np.arange(ax_sz):
@@ -1097,7 +1113,7 @@ for f  in np.arange(ax_sz):
                 if shuffle == 1:
                     d_list2[s] = False
      
-        d_list1 = good_list >0
+        # d_list1 = good_list >0
         # V_cap2_base[f,cv] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
         #                                                       pca[f].components_[:,d_list2].T),
         #                                                         pca[f].components_[:,d_list2]))/np.linalg.norm(R[:,d_list2])
@@ -1161,8 +1177,8 @@ d_list1 = good_list > 179
 d_list3 = good_list <= 179
 
 
-def draw_traj(traj):
-    fig = plt.figure()
+def draw_traj(traj,f):
+    fig = plt.figure(figsize = (10,10))
     ax = plt.axes(projection='3d')
     styles = ['solid', 'solid', 'solid','dotted']
     cmap_names = ['summer','autumn','winter','summer']
@@ -1191,19 +1207,69 @@ def draw_traj(traj):
         if tr ==0:
             ax.auto_scale_xyz(x,y,z)
         # fig.colorbar(line, ax=axs[0])
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
-    ax.set_zlabel('PC3')
+    # ax.set_xlabel('PC1')
+    # ax.set_ylabel('PC2')
+    # ax.set_zlabel('PC3')
+    # gif_filename = 'trajectory'
+    for n in range(0, 100):
+        if n >= 20 and n<50:
+            ax.set_xlabel('')
+            ax.set_ylabel('')
+            ax.elev = ax.elev+4.0 #pan down faster 
+        if n >= 50 and n<80:
+            ax.set_xlabel('')
+            ax.set_ylabel('')
+            ax.elev = ax.elev+2.0 #pan down faster 
+            ax.azim = ax.azim+4.0
+        # if n >= 20 and n <= 22: 
+        #     ax.set_xlabel('')
+        #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
+        #     ax.elev = ax.elev-2 #start by panning down slowly 
+        # if n >= 23 and n <= 36: 
+        #     ax.elev = ax.elev-1.0 #pan down faster 
+        # if n >= 37 and n <= 60: 
+        #     ax.elev = ax.elev-1.5 
+        #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
+        # if n >= 61 and n <= 64: 
+        #     ax.elev = ax.elev-1.0 
+        #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
+        # if n >= 65 and n <= 73: 
+        #     ax.elev = ax.elev-0.5 
+        #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
+        # if n >= 74 and n <= 76:
+        #     ax.elev = ax.elev-0.2
+        #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
+        if n >= 80: #add axis labels at the end, when the plot isn't moving around
+            ax.set_xlabel('PC1')
+            ax.set_ylabel('PC2')
+            ax.set_zlabel('PC3')
+        # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
+        plt.savefig('images/img' + str(n).zfill(3) + '.png',
+                    bbox_inches='tight')
+    
+# %%
 
+plt.close()
+draw_traj(traj,3)
+import IPython.display as IPdisplay
+import glob
+from PIL import Image as PIL_Image
+import imageio
+
+images = [PIL_Image.open(image) for image in glob.glob('images/*.png')]
+file_path_name = 'images/trajectory_history.gif'
+imageio.mimsave(file_path_name, images)
+
+# writeGif(file_path_name, images, duration=0.1)
+# IPdisplay.Image(url=file_path_name)
 # %%
 
 fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
-
+traj = {}
 xtime = np.arange(130)*5*1e-3-1e3
 for f in np.arange(ax_sz):
     R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
     
-    traj = {}
     traj[f] = {}
     # traj[f][0] = pca[f].fit_transform(R)
     traj[f][0] = np.dot(R,pca[f].components_.T)                                   
@@ -1211,7 +1277,7 @@ for f in np.arange(ax_sz):
     traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
     traj[f][3] = traj[f][1] + traj[f][2]
 
-    draw_traj(traj)
+    draw_traj(traj,f)
     distance = {}
     distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
     distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
