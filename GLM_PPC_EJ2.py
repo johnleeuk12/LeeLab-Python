@@ -911,161 +911,161 @@ for f in np.arange(ax_sz):
 
 # %% Saving files
 
-np.save('pca_PPCallv2.npy',pca)
-np.save('Data_PPCallv2.npy', Data)
-# pca_IC = np.load('pca_PPCIC.npy',allow_pickle=True).item()
-# ax.set_title('pcolormesh')
-# # set the limits of the plot to the limits of the data
-# ax.clim(0, 1)
-# ax.colorbar()
+# np.save('pca_PPCallv2.npy',pca)
+# np.save('Data_PPCallv2.npy', Data)
+# # pca_IC = np.load('pca_PPCIC.npy',allow_pickle=True).item()
+# # ax.set_title('pcolormesh')
+# # # set the limits of the plot to the limits of the data
+# # ax.clim(0, 1)
+# # ax.colorbar()
 
 # %%  plot PC scatter (archive)
 
-fig, axes = plt.subplots(4,2, figsize = (15,30))
+# fig, axes = plt.subplots(4,2, figsize = (15,30))
 
-color_ind = good_list<141
+# color_ind = good_list<141
 
-for f in np.arange(ax_sz):
-    axes[f,0].scatter(pca[f].components_[0,:],pca[f].components_[1,:],s = 15, c= color_ind, cmap = 'bwr')
-    axes[f,0].vlines(0,-0.3,0.3,linestyles = 'dashed')
-    axes[f,0].hlines(0,-0.3,0.3,linestyles = 'dashed')
+# for f in np.arange(ax_sz):
+#     axes[f,0].scatter(pca[f].components_[0,:],pca[f].components_[1,:],s = 15, c= color_ind, cmap = 'bwr')
+#     axes[f,0].vlines(0,-0.3,0.3,linestyles = 'dashed')
+#     axes[f,0].hlines(0,-0.3,0.3,linestyles = 'dashed')
 
-    # axes[f,0].axis([-abs(np.max(pca[f].components_[0,:])),abs(np.max(pca[f].components_[0,:])), -abs(np.max(pca[f].components_[1,:])),abs(np.max(pca[f].components_[1,:])) ])
-    axes[f,1].scatter(pca[f].components_[1,:],pca[f].components_[2,:],s = 15, c= color_ind, cmap ='bwr')
-    axes[f,1].vlines(0,-0.3,0.3,linestyles = 'dashed')
-    axes[f,1].hlines(0,-0.3,0.3,linestyles = 'dashed')
+#     # axes[f,0].axis([-abs(np.max(pca[f].components_[0,:])),abs(np.max(pca[f].components_[0,:])), -abs(np.max(pca[f].components_[1,:])),abs(np.max(pca[f].components_[1,:])) ])
+#     axes[f,1].scatter(pca[f].components_[1,:],pca[f].components_[2,:],s = 15, c= color_ind, cmap ='bwr')
+#     axes[f,1].vlines(0,-0.3,0.3,linestyles = 'dashed')
+#     axes[f,1].hlines(0,-0.3,0.3,linestyles = 'dashed')
     
     
-# test2 = pca[4].components_[0,color_ind]
-# test3 = pca[4].components_[0,good_list >141]
+# # test2 = pca[4].components_[0,color_ind]
+# # test3 = pca[4].components_[0,good_list >141]
 
-# fig, ax = plt.subplots(2,1,figsize = (10,10))
+# # fig, ax = plt.subplots(2,1,figsize = (10,10))
 
-# ax[0].hist(test2, bins = np.arange(-0.4,0.4+0.01,0.01))
-# ax[1].hist(test3, bins = np.arange(-0.4,0.4+0.01,0.01))    
-f = 0
+# # ax[0].hist(test2, bins = np.arange(-0.4,0.4+0.01,0.01))
+# # ax[1].hist(test3, bins = np.arange(-0.4,0.4+0.01,0.01))    
+# f = 0
 
 
 
 # %% PCA comparison of subspace overlap (Archive)
 
-d_list = good_list > 179
+# d_list = good_list > 179
 
-d_list3 = good_list <= 179
+# d_list3 = good_list <= 179
 
 
-cv_ind = 50
+# cv_ind = 50
 
-V_cap1_all = np.zeros((5,5,cv_ind))
-V_cap2_all = np.zeros((5,5,cv_ind))
-for cv in np.arange(cv_ind):
+# V_cap1_all = np.zeros((5,5,cv_ind))
+# V_cap2_all = np.zeros((5,5,cv_ind))
+# for cv in np.arange(cv_ind):
     
-    d_list = good_list > 179
+#     d_list = good_list > 179
     
-    d_list3 = good_list <= 179
-        # 20% shuffle
+#     d_list3 = good_list <= 179
+#         # 20% shuffle
 
-    for s in np.arange(np.size(good_list)):
-        if d_list[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.75,0.25])
-            if shuffle == 1:
-                d_list[s] = False
+#     for s in np.arange(np.size(good_list)):
+#         if d_list[s] == True:
+#             shuffle = np.random.choice(2,1, p = [0.75,0.25])
+#             if shuffle == 1:
+#                 d_list[s] = False
         
-        if d_list3[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.75,0.25])
-            if shuffle == 1:
-                d_list3[s] = False
+#         if d_list3[s] == True:
+#             shuffle = np.random.choice(2,1, p = [0.75,0.25])
+#             if shuffle == 1:
+#                 d_list3[s] = False
 
 
     
-    rand_sample = np.random.randint(2, size=np.size(good_list))
-    rand_sample = np.array(rand_sample, dtype = bool)
+#     rand_sample = np.random.randint(2, size=np.size(good_list))
+#     rand_sample = np.array(rand_sample, dtype = bool)
     
-    d_list1 = d_list*rand_sample
-    d_list11 = d_list*np.invert(rand_sample)
+#     d_list1 = d_list*rand_sample
+#     d_list11 = d_list*np.invert(rand_sample)
 
 
-    d_list2 = d_list3*rand_sample
-    d_list22 = d_list3*np.invert(rand_sample)
+#     d_list2 = d_list3*rand_sample
+#     d_list22 = d_list3*np.invert(rand_sample)
     
-    ref_ind = 1
-    comp_ind = 0
-    V_cap1 = np.zeros((5,5))
-    V_cap11 = np.zeros((5,5))
-    V_cap2 = np.zeros((5,5))
-    V_cap22 = np.zeros((5,5))
+#     ref_ind = 1
+#     comp_ind = 0
+#     V_cap1 = np.zeros((5,5))
+#     V_cap11 = np.zeros((5,5))
+#     V_cap2 = np.zeros((5,5))
+#     V_cap22 = np.zeros((5,5))
     
-    for f  in np.arange(ax_sz): 
-        for ref_ind in np.arange(5):
-            R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
-            V_cap1[f,ref_ind] = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],
-                                                                  pca[f].components_[ref_ind,d_list1].T.reshape(-1,1)),
-                                                                    pca[f].components_[ref_ind,d_list1].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list1])
+#     for f  in np.arange(ax_sz): 
+#         for ref_ind in np.arange(5):
+#             R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
+#             V_cap1[f,ref_ind] = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],
+#                                                                   pca[f].components_[ref_ind,d_list1].T.reshape(-1,1)),
+#                                                                     pca[f].components_[ref_ind,d_list1].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list1])
             
-            V_cap11[f,ref_ind] = 1-np.linalg.norm(R[:,d_list11] - np.dot(np.dot(R[:,d_list11],
-                                                                  pca[f].components_[ref_ind,d_list11].T.reshape(-1,1)),
-                                                                    pca[f].components_[ref_ind,d_list11].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list11])
+#             V_cap11[f,ref_ind] = 1-np.linalg.norm(R[:,d_list11] - np.dot(np.dot(R[:,d_list11],
+#                                                                   pca[f].components_[ref_ind,d_list11].T.reshape(-1,1)),
+#                                                                     pca[f].components_[ref_ind,d_list11].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list11])
             
-            V_cap2[f,ref_ind] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
-                                                                  pca[f].components_[ref_ind,d_list2].T.reshape(-1,1)),
-                                                                    pca[f].components_[ref_ind,d_list2].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list2])
+#             V_cap2[f,ref_ind] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
+#                                                                   pca[f].components_[ref_ind,d_list2].T.reshape(-1,1)),
+#                                                                     pca[f].components_[ref_ind,d_list2].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list2])
             
-            V_cap22[f,ref_ind] = 1-np.linalg.norm(R[:,d_list22] - np.dot(np.dot(R[:,d_list22],
-                                                                  pca[f].components_[ref_ind,d_list22].T.reshape(-1,1)),
-                                                                    pca[f].components_[ref_ind,d_list22].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list22])
-            
-            
+#             V_cap22[f,ref_ind] = 1-np.linalg.norm(R[:,d_list22] - np.dot(np.dot(R[:,d_list22],
+#                                                                   pca[f].components_[ref_ind,d_list22].T.reshape(-1,1)),
+#                                                                     pca[f].components_[ref_ind,d_list22].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list22])
             
             
-    V_cap1 = V_cap1 + V_cap11
-    V_cap2 = V_cap2 + V_cap22
+            
+            
+#     V_cap1 = V_cap1 + V_cap11
+#     V_cap2 = V_cap2 + V_cap22
       
     
-    V_cap1 = V_cap1.T*(1/np.sum(V_cap1,axis = 1))
-    V_cap1_all[:,:,cv] = V_cap1.T
+#     V_cap1 = V_cap1.T*(1/np.sum(V_cap1,axis = 1))
+#     V_cap1_all[:,:,cv] = V_cap1.T
     
-    V_cap2 = V_cap2.T*(1/np.sum(V_cap2,axis = 1))
-    V_cap2_all[:,:,cv] = V_cap2.T
+#     V_cap2 = V_cap2.T*(1/np.sum(V_cap2,axis = 1))
+#     V_cap2_all[:,:,cv] = V_cap2.T
     
     
 
-V_cap3 = 1-np.linalg.norm(R-np.dot(np.dot(R,pca[f].components_[ref_ind,:].T.reshape(-1,1)),
-                                    pca[f].components_[ref_ind,:].reshape(1,-1)))/np.linalg.norm(R)
+# V_cap3 = 1-np.linalg.norm(R-np.dot(np.dot(R,pca[f].components_[ref_ind,:].T.reshape(-1,1)),
+#                                     pca[f].components_[ref_ind,:].reshape(1,-1)))/np.linalg.norm(R)
 
 
 
 
-# PCA subspace overlap, stat tests
+# # PCA subspace overlap, stat tests
 
 
-fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
+# fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
 
-x_pos = [1,2]
-for f in np.arange(ax_sz):
+# x_pos = [1,2]
+# for f in np.arange(ax_sz):
     
-    for pc in [0,1]:
-        [s,p] = stats.ttest_ind(V_cap1_all[f,pc,:],V_cap2_all[f,pc,:],equal_var = False)
-        PCmean = [np.mean(V_cap1_all[f,pc,:]),np.mean(V_cap2_all[f,pc,:])]
-        PCerr = [np.std(V_cap1_all[f,pc,:]),np.std(V_cap2_all[f,pc,:])]
-        axes[f,pc].bar(x_pos, PCmean, yerr=PCerr, align='center', alpha=0.5, color = cmap3[f], ecolor='black', capsize=10)
-        axes[f,pc].set_xticks(x_pos)
-        axes[f,pc].set_xticklabels(['PPC_AC', 'PPC_IC'])
-        axes[f,pc].set_ylim([0,1])
+#     for pc in [0,1]:
+#         [s,p] = stats.ttest_ind(V_cap1_all[f,pc,:],V_cap2_all[f,pc,:],equal_var = False)
+#         PCmean = [np.mean(V_cap1_all[f,pc,:]),np.mean(V_cap2_all[f,pc,:])]
+#         PCerr = [np.std(V_cap1_all[f,pc,:]),np.std(V_cap2_all[f,pc,:])]
+#         axes[f,pc].bar(x_pos, PCmean, yerr=PCerr, align='center', alpha=0.5, color = cmap3[f], ecolor='black', capsize=10)
+#         axes[f,pc].set_xticks(x_pos)
+#         axes[f,pc].set_xticklabels(['PPC_AC', 'PPC_IC'])
+#         axes[f,pc].set_ylim([0,1])
         
-        if pc ==1:
-            axes[f,pc].get_yaxis().set_visible(False)
+#         if pc ==1:
+#             axes[f,pc].get_yaxis().set_visible(False)
         
-        if p < 0.001:
-            # axes[f,pc].scatter([1.5], [0.75], marker = '*')
-            axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
-        if p >0.001 and p<0.01:
-            axes[f,pc].scatter([1.45,1.55], [0.75,0.75], marker = '*')
-        # if p <0.001:
-        #     axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
-        # if 0.001< pc<0.01:
-        #     axes[f,pc].scatter([1.5,1.6], [0.75,0.75], marker = '*')
-        # if 0.01 <pc < 0.05:
-        #     axes[f,pc].scatter([1.5], [0.75], marker = '*')
+#         if p < 0.001:
+#             # axes[f,pc].scatter([1.5], [0.75], marker = '*')
+#             axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
+#         if p >0.001 and p<0.01:
+#             axes[f,pc].scatter([1.45,1.55], [0.75,0.75], marker = '*')
+#         # if p <0.001:
+#         #     axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
+#         # if 0.001< pc<0.01:
+#         #     axes[f,pc].scatter([1.5,1.6], [0.75,0.75], marker = '*')
+#         # if 0.01 <pc < 0.05:
+#         #     axes[f,pc].scatter([1.5], [0.75], marker = '*')
 
 
 
@@ -1275,7 +1275,7 @@ for f in np.arange(ax_sz):
     traj[f][0] = np.dot(R,pca[f].components_.T)                                   
     traj[f][1] = np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
     traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
-    traj[f][3] = traj[f][1] + traj[f][2]
+    # traj[f][3] = traj[f][1] + traj[f][2]
 
     draw_traj(traj,f)
     distance = {}
@@ -1288,19 +1288,6 @@ for f in np.arange(ax_sz):
  
     axes[f,1].plot(xtime,distance[0]-(distance[0]+distance[1])/2, linestyle = 'solid')
     axes[f,1].plot(xtime,distance[1]-(distance[0]+distance[1])/2, linestyle = 'dashed')   
-    
-    # fig = plt.figure()
-    # ax = plt.axes(projection='3d')
-    # ax.plot3D(traj[f][0][:,0],traj[f][0][:,1],traj[f][0][:,2],color = cmap3[f],label = 'All')
-    # ax.plot3D(traj[f][1][:,0],traj[f][1][:,1],traj[f][1][:,2],color = cmap3[f], 
-    #           linestyle = 'dashed', label = 'PPC_AC')
-    # ax.plot3D(traj[f][2][:,0],traj[f][2][:,1],traj[f][2][:,2],color = cmap3[f], 
-    #           linestyle = 'dotted', label = 'PPC_IC')
-    
-    # ax.set_xlabel('PC1')
-    # ax.set_ylabel('PC2')
-    # ax.set_zlabel('PC3')
-    # ax.legend(loc = 'upper right')
     
 
 
