@@ -137,6 +137,7 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
     
     X = D_ppc[n,2][:,2:6] # task variables
     Y = [];
+    Y2 = [];
     S = np.concatenate((S_pre,S),1)
     t_period = t_period+prestim
     
@@ -178,10 +179,13 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
         
     for w in range(int(t_period/window)):
         y = np.mean(S[:,range(window*w,window*(w+1))],1)*1e3
+        y2 = np.sum(S[:,range(window*w,window*(w+1))],1)
         Y = np.concatenate((Y,y))
+        Y2 = np.concatenate((Y2,y2))
         
     Y = np.reshape(Y,(int(t_period/window),N_trial2)).T
-    return X, Y
+    Y2 = np.reshape(Y2,(int(t_period/window),N_trial2)).T
+    return X, Y, Y2
 
 def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # D_ppc = load_matfile_Ca()
@@ -245,10 +249,11 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca): 
     # if using spike data
     if ca == 0:
-        X, Y = import_data_w_spikes(n,prestim,t_period,window,c_ind)
+        X, Y, Y2 = import_data_w_spikes(n,prestim,t_period,window,c_ind)
     else:
     # if using Ca data
         X, Y = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+        Y2 = Y
     
     
     t_period = t_period+prestim
@@ -261,13 +266,14 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
 
     
     # reg = TweedieRegressor(power = 0, alpha = 0)
-    reg = Ridge (alpha = 1e1) #Using a linear regression model with Ridge regression regulator set with alpha = 1
-
+    reg = ElasticNet(alpha = 4*1e-2, l1_ratio = 0.5) #Using a linear regression model with Ridge regression regulator set with alpha = 1
+    # reg = Ridge(alpha = 4*1e-2)
     for w in range(int(t_period/window)):
-        y = Y[:,w]
+        y = Y2[:,w]
         X2 = np.column_stack([np.ones_like(y),X])
         ss= ShuffleSplit(n_splits=k, test_size=0.20, random_state=0)
-        cv_results = cross_validate(reg, X, y, cv = ss , 
+        y2 = ndimage.gaussian_filter(y,0)
+        cv_results = cross_validate(reg, X, y2, cv = ss , 
                                     return_estimator = True, 
                                     scoring = 'explained_variance')
         theta = np.zeros((np.size(X,1),k))
@@ -393,7 +399,7 @@ Each column of X contains the following information:
 
 
 t_period = 6000
-prestim = 500
+prestim = 1000
 
 window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
 window2 = 500
@@ -538,7 +544,7 @@ weight_thresh = 1*1e-2
 # ana_period = np.array([2000, 4000]) # (Stimulus presentation period)
 # ana_period = np.array([1500, 2500])
 # ana_period = np.array([2500, 4500])
-ana_period = np.array([0, 4500])
+ana_period = np.array([0, 6000])
 for c_ind in c_list:
     if c_ind == 0 or c_ind ==-3 or c_ind == -4 or c_ind == -2:
         b_ind = 6
@@ -559,7 +565,7 @@ def pie_all_rules(best_kernel):
     # d_list = good_list > 179
 
     # d_list3 = good_list <= 179
-
+    
     # good_list_sep = np.int_(good_list[d_list])
 
     
@@ -728,14 +734,14 @@ for c_ind in c_list:
 
 for f in range(ax_sz):
     axes[f].scatter(best_kernel[c_ind][0,:],best_kernel[c_ind][f+2,:],c = cmap3[f])
-    axes[f].set_ylim([0,1])
+    axes[f].set_ylim([0,.5])
     axes[f].set_xticks(bins[1::2], x_axis[1::2])
-    axes[f].hlines(y =0.25,
-              xmin = bins[0]-1,
-              xmax = bins[-1]+1,
-              linestyles = 'dashed',
-              colors = 'black', 
-              linewidth = 2.0)
+    # axes[f].hlines(y =0.25,
+    #           xmin = bins[0]-1,
+    #           xmax = bins[-1]+1,
+    #           linestyles = 'dashed',
+    #           colors = 'black', 
+    #           linewidth = 2.0)
 
 
 # %% Calculating number/fraction of neurons with significant coding for each task variable
@@ -819,16 +825,20 @@ d_list = good_list > 179
 
 d_list3 = good_list <= 179
 
+cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
+
 good_list_sep = good_list
 
 
 
 if c_ind == 0 or c_ind == -2:
     ax_sz = 4
+    cmap3 = ['tab:purple','tab:orange','tab:blue','tab:olive']
     
 elif c_ind == -1:
     ax_sz = 5
-    
+    cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
+
 Convdata = {}
 
 for b_ind in np.arange(ax_sz):
@@ -840,11 +850,11 @@ for n in np.arange(np.size(good_list_sep,0)):
     Model_coef = Data[nn, c_ind-1]["coef"]
     Model_score = Data[nn, c_ind-1]["score"]
 
-    Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+    Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.1) # soft normalization value for model_coef
     norm_score = np.mean(Model_score, 1)
     norm_score[norm_score < weight_thresh] = 0
     if np.max(norm_score)>0:
-        norm_score = norm_score/np.max(norm_score)
+        norm_score = norm_score/(np.max(norm_score)+weight_thresh)
     else:
         norm_score = 0    
     conv = Model_coef*norm_score
@@ -860,7 +870,7 @@ for f in range(ax_sz):
         y = ndimage.gaussian_filter(np.mean(Convdata[f],0),1)
         axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
         axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-        axes.set_ylim([0,0.27])
+        axes.set_ylim([0,0.25])
 
 
 e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -1177,7 +1187,7 @@ d_list1 = good_list > 179
 d_list3 = good_list <= 179
 
 
-def draw_traj(traj,f):
+def draw_traj(traj,f,v):
     fig = plt.figure(figsize = (10,10))
     ax = plt.axes(projection='3d')
     styles = ['solid', 'solid', 'solid','dotted']
@@ -1211,41 +1221,42 @@ def draw_traj(traj,f):
     # ax.set_ylabel('PC2')
     # ax.set_zlabel('PC3')
     # gif_filename = 'trajectory'
-    for n in range(0, 100):
-        if n >= 20 and n<50:
-            ax.set_xlabel('')
-            ax.set_ylabel('')
-            ax.elev = ax.elev+4.0 #pan down faster 
-        if n >= 50 and n<80:
-            ax.set_xlabel('')
-            ax.set_ylabel('')
-            ax.elev = ax.elev+2.0 #pan down faster 
-            ax.azim = ax.azim+4.0
-        # if n >= 20 and n <= 22: 
-        #     ax.set_xlabel('')
-        #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
-        #     ax.elev = ax.elev-2 #start by panning down slowly 
-        # if n >= 23 and n <= 36: 
-        #     ax.elev = ax.elev-1.0 #pan down faster 
-        # if n >= 37 and n <= 60: 
-        #     ax.elev = ax.elev-1.5 
-        #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
-        # if n >= 61 and n <= 64: 
-        #     ax.elev = ax.elev-1.0 
-        #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
-        # if n >= 65 and n <= 73: 
-        #     ax.elev = ax.elev-0.5 
-        #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
-        # if n >= 74 and n <= 76:
-        #     ax.elev = ax.elev-0.2
-        #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
-        if n >= 80: #add axis labels at the end, when the plot isn't moving around
-            ax.set_xlabel('PC1')
-            ax.set_ylabel('PC2')
-            ax.set_zlabel('PC3')
-        # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
-        plt.savefig('images/img' + str(n).zfill(3) + '.png',
-                    bbox_inches='tight')
+    if v ==1:
+        for n in range(0, 100):
+            if n >= 20 and n<50:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+4.0 #pan down faster 
+            if n >= 50 and n<80:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+2.0 #pan down faster 
+                ax.azim = ax.azim+4.0
+            # if n >= 20 and n <= 22: 
+            #     ax.set_xlabel('')
+            #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
+            #     ax.elev = ax.elev-2 #start by panning down slowly 
+            # if n >= 23 and n <= 36: 
+            #     ax.elev = ax.elev-1.0 #pan down faster 
+            # if n >= 37 and n <= 60: 
+            #     ax.elev = ax.elev-1.5 
+            #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
+            # if n >= 61 and n <= 64: 
+            #     ax.elev = ax.elev-1.0 
+            #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
+            # if n >= 65 and n <= 73: 
+            #     ax.elev = ax.elev-0.5 
+            #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
+            # if n >= 74 and n <= 76:
+            #     ax.elev = ax.elev-0.2
+            #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
+            if n >= 80: #add axis labels at the end, when the plot isn't moving around
+                ax.set_xlabel('PC1')
+                ax.set_ylabel('PC2')
+                ax.set_zlabel('PC3')
+            # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
+            plt.savefig('images/img' + str(n).zfill(3) + '.png',
+                        bbox_inches='tight')
     
 # %%
 
@@ -1275,19 +1286,19 @@ for f in np.arange(ax_sz):
     traj[f][0] = np.dot(R,pca[f].components_.T)                                   
     traj[f][1] = np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
     traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
-    # traj[f][3] = traj[f][1] + traj[f][2]
+    traj[f][3] = traj[f][1] + traj[f][2]
 
-    draw_traj(traj,f)
-    distance = {}
-    distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
-    distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
+    draw_traj(traj,f,0)
+    # distance = {}
+    # distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
+    # distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
     
     
-    axes[f,0].plot(xtime,distance[0], linestyle = 'solid')
-    axes[f,0].plot(xtime,distance[1], linestyle = 'dashed')
+    # axes[f,0].plot(xtime,distance[0], linestyle = 'solid')
+    # axes[f,0].plot(xtime,distance[1], linestyle = 'dashed')
  
-    axes[f,1].plot(xtime,distance[0]-(distance[0]+distance[1])/2, linestyle = 'solid')
-    axes[f,1].plot(xtime,distance[1]-(distance[0]+distance[1])/2, linestyle = 'dashed')   
+    # axes[f,1].plot(xtime,distance[0]-(distance[0]+distance[1])/2, linestyle = 'solid')
+    # axes[f,1].plot(xtime,distance[1]-(distance[0]+distance[1])/2, linestyle = 'dashed')   
     
 
 
