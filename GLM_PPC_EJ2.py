@@ -55,7 +55,7 @@ from os.path import join as pjoin
 
 # change fname for filename
 
-fname = 'CaData4GLM_PPCACandIC_v2.mat'
+fname = 'PPC_GLM_dataset_AllSession_FR_230209.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -401,10 +401,10 @@ Each column of X contains the following information:
 t_period = 6000
 prestim = 1000
 
-window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
-window2 = 500
+window = 100 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
+window2 = 1000
 k = 10 # number of cv
-ca = 1
+ca = 0
 
 # define c index here, according to comments within the "glm_per_neuron" function
 c_list = [-2]
@@ -478,7 +478,7 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
         ind = int(ind)
         score_mean[0,k] = np.mean(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
         score_var[0,k]  = np.var(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
-        model_mean[:,k] = np.mean(Model_Theta[:,ind:ind+bin_size],1)
+        model_mean[:,k] = np.mean(np.abs(Model_Theta[:,ind:ind+bin_size]),1)
         k = k+1
     
     max_ind = np.argmax(score_mean[0,int(ana_bin[0]):int(ana_bin[1])]) + int(ana_bin[0])
@@ -486,7 +486,7 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
     coef = model_mean[:,max_ind]
     
     
-    return max_ind, best_score, coef, model_mean, score_mean
+    return max_ind, best_score, coef, model_mean, score_mean, score_var
 
 # %% Calculating best_kernel
 
@@ -513,12 +513,13 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
     k = 0;
     for n in good_list2:
         n = int(n)
-        mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
+        mi, bs, coef,beta_weights,mean_score, var_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
         # Y_mean = np.mean(Data[n,c_ind-1]["Y"])
         if bs > weight_thresh:
             best_kernel[c_ind][0,k] = int(mi)
-            best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
+            if np.max(np.abs(coef))>var_score[0,mi]:
+                best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
             best_kernel[c_ind][2,k] = norm_coef[0] 
             best_kernel[c_ind][3,k] = norm_coef[1]
             best_kernel[c_ind][4,k] = norm_coef[2]
@@ -827,7 +828,7 @@ d_list3 = good_list <= 179
 
 cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
 
-good_list_sep = good_list
+good_list_sep = good_list[cat_list]
 
 
 
@@ -840,10 +841,11 @@ elif c_ind == -1:
     cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
 
 Convdata = {}
-
+norm_score_all = {};
+norm_score_all = np.zeros((np.size(good_list_sep),np.size(score,0)))
 for b_ind in np.arange(ax_sz):
     Convdata[b_ind] = np.zeros((np.size(good_list_sep),np.size(score,0)))
-    
+        
 for n in np.arange(np.size(good_list_sep,0)):
     # n = int(n)
     nn = good_list_sep[n]
@@ -858,20 +860,22 @@ for n in np.arange(np.size(good_list_sep,0)):
     else:
         norm_score = 0    
     conv = Model_coef*norm_score
+    norm_score_all[n,:] = norm_score.T
     for b_ind in np.arange(np.size(Model_coef, 0)):
         Convdata[b_ind][n, :] = conv[b_ind, :]
 
 
 x_axis = np.arange(1, prestim+t_period, window)
-fig, axes = plt.subplots(1,1,figsize = (10,8))
+fig, axes = plt.subplots(2,1,figsize = (10,14))
 
 for f in range(ax_sz):
         error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list_sep))
-        y = ndimage.gaussian_filter(np.mean(Convdata[f],0),1)
-        axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
-        axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-        axes.set_ylim([0,0.25])
+        y = ndimage.gaussian_filter(np.mean(Convdata[f],0),2)
+        axes[0].plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
+        axes[0].fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
+        axes[0].set_ylim([0,0.15])
 
+axes[1].plot(x_axis*1e-3-prestim*1e-3,ndimage.gaussian_filter(np.mean(norm_score_all,0),2))
 
 e_lines = np.array([0, 500, 500+1000, 2500+1000])
 e_lines = e_lines+500
@@ -888,7 +892,7 @@ pca = {};
 for f in np.arange(ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
     pca[f] = PCA(n_components=20) 
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[1,0]))
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
     # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
     
     test = test.T
@@ -1196,6 +1200,11 @@ def draw_traj(traj,f,v):
         x = traj[f][tr][:,0]
         y = traj[f][tr][:,1]
         z = traj[f][tr][:,2]
+        if ca == 0:
+            x = ndimage.gaussian_filter(x,1)
+            y = ndimage.gaussian_filter(y,1)
+            z = ndimage.gaussian_filter(z,1)            
+            
         time = np.arange(len(x))
         points = np.array([x, y, z]).T.reshape(-1, 1, 3)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
@@ -1255,27 +1264,27 @@ def draw_traj(traj,f,v):
                 ax.set_ylabel('PC2')
                 ax.set_zlabel('PC3')
             # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
-            plt.savefig('images/img' + str(n).zfill(3) + '.png',
+            plt.savefig('Images/img' + str(n).zfill(3) + '.png',
                         bbox_inches='tight')
     
 # %%
 
 plt.close()
-draw_traj(traj,3)
+draw_traj(traj,2,1)
 import IPython.display as IPdisplay
 import glob
 from PIL import Image as PIL_Image
 import imageio
 
 images = [PIL_Image.open(image) for image in glob.glob('images/*.png')]
-file_path_name = 'images/trajectory_history.gif'
+file_path_name = 'images/SU_trajectory_Stim.gif'
 imageio.mimsave(file_path_name, images)
 
 # writeGif(file_path_name, images, duration=0.1)
 # IPdisplay.Image(url=file_path_name)
 # %%
 
-fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
+# fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
 traj = {}
 xtime = np.arange(130)*5*1e-3-1e3
 for f in np.arange(ax_sz):
@@ -1284,9 +1293,9 @@ for f in np.arange(ax_sz):
     traj[f] = {}
     # traj[f][0] = pca[f].fit_transform(R)
     traj[f][0] = np.dot(R,pca[f].components_.T)                                   
-    traj[f][1] = np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
-    traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
-    traj[f][3] = traj[f][1] + traj[f][2]
+    traj[f][1] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
+    traj[f][2] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
+    traj[f][3] = np.dot(R,pca[f].components_.T)      # traj[f][1] + traj[f][2]
 
     draw_traj(traj,f,0)
     # distance = {}
