@@ -55,7 +55,8 @@ from os.path import join as pjoin
 
 # change fname for filename
 
-fname = 'PPC_GLM_dataset_AllSession_FR_230209.mat'
+# fname = 'PPC_GLM_dataset_AllSession_FR_230209.mat'
+fname = 'CaData_all_withlicktime.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -173,22 +174,17 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
         Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
         Xpre = Xpre[:,None]
         X = np.concatenate((X,Xpre),1)
+        X2 = X
     elif c_ind ==-2:
         Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]
-        X = np.concatenate((X,Xpre),1)
-        X = X[:,[0,1,3,4]]
-    elif c_ind !=0 and c_ind !=3 and c_ind !=-2: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
-        if c_ind ==1 or c_ind ==-3:
-            r_ind = np.arange(200)
-        elif c_ind ==2 or c_ind ==-4:
-            r_ind = np.arange(200,np.size(X,0))
-        
-        S = S[r_ind,:]
-        X = X[r_ind,:]
-        X = X[:,1:]
+        Xpre = Xpre[:,None]       
+        # X2 = np.column_stack([X[:,0],(X[:,0]-1)*-1,
+        #                      X[:,3],(X[:,3]-1)*-1,
+        #                      X[:,2]*X[:,1],Xpre])
+        X2 = np.column_stack([X[:,0],X[:,3],
+                             X[:,2]*X[:,1],Xpre])  
     
-        
+    
     
     L2 = []
     for w in range(int(t_period/window)):
@@ -202,11 +198,35 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
     Y = np.reshape(Y,(int(t_period/window),N_trial2)).T
     Y2 = np.reshape(Y2,(int(t_period/window),N_trial2)).T
     L2 = np.reshape(L2,(int(t_period/window),N_trial2)).T
-    return X, Y, Y2, L2
+    return X2, Y, Y2, L2
 
 def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # D_ppc = load_matfile_Ca()
+    
+    
+    L_all = np.zeros((1,int(np.floor(D_ppc[n,3][0,max(D_ppc[n,2][:,0])]*1e3))+t_period+100))
     N_trial = np.size(D_ppc[n,2],0)
+    
+    # extracting licks, the same way
+    for l in np.floor(D_ppc[n,1]*1e3):
+        l = int(l) 
+        if l < np.size(L_all,1):
+            L_all[0,l-1] = 1 
+    
+    L = np.zeros((N_trial,t_period+prestim))
+    for tr in range(N_trial):
+        stim_onset = int(np.round(D_ppc[n,3][0,D_ppc[n,2][tr,0]]*1e3))
+        L[tr,:] = L_all[0,stim_onset-prestim-1:stim_onset+t_period-1]
+        
+        # reformatting lick rates
+    L2 = []
+    for w in range(int((t_period+prestim)/window)):
+        l = np.sum(L[:,range(window*w,window*(w+1))],1)
+        L2 = np.concatenate((L2,l)) 
+            
+    L2 = np.reshape(L2,(int((t_period+prestim)/window),N_trial)).T
+
+
     X = D_ppc[n,2][:,2:6] # task variables
 
     t_period = t_period+prestim
@@ -216,8 +236,9 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     Y = np.zeros((N_trial,int(t_period/window)))
     for tr in range(N_trial):
         Y[tr,:] = D_ppc[n,0][0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
-                
     
+
+
                 
     # select analysis and model parameters with c_ind
     
@@ -225,40 +246,23 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # remove conditioning trials 
         Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
         X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
+        L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)
     else:
     # only contain conditioning trials    
         Y = Y[201:D_ppc[n,4][0][0]]
         X = X[201:D_ppc[n,4][0][0]]
+        L2 = L2[201:D_ppc[n,4][0][0]]
 
     
-    if c_ind == -1:                
-        # Adding previous trial correct vs wrong
-        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]
-        X = np.concatenate((X,Xpre),1)
-    elif c_ind ==-2:
-        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]
-        X = np.concatenate((X,Xpre),1)
-        X = X[:,[0,1,3,4]]
-    elif c_ind !=0 and c_ind !=3 and c_ind !=-2: # if c_ind is 0 this does not separate rule1 and rule2 in this case, need to add + plot contingency
-        if c_ind ==1 or c_ind ==-3:
-            r_ind = np.arange(200)
-        elif c_ind ==2 or c_ind ==-4:
-            r_ind = np.arange(200,np.size(X,0))
-        
-        
-        # Adding previous trial correct vs wrong
-        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]
-        X = np.concatenate((X,Xpre),1)
-        
-        Y = Y[r_ind,:]
-        X = X[r_ind,:]
-        X = X[:,1:]  
-        
-        
-    return X,Y 
+
+    Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
+    Xpre = Xpre[:,None]
+    X2 = np.column_stack([X[:,0],X[:,3],
+                         X[:,2]*X[:,1],Xpre]) 
+    
+
+    
+    return X2,Y, L2
     
 # %% Main function for GLM
 # %% glm_per_neuron function code
@@ -269,7 +273,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         X, Y, Y2,L = import_data_w_spikes(n,prestim,t_period,window,c_ind)
     else:
     # if using Ca data
-        X, Y = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+        X, Y, L = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
         Y2 = Y
     
     
@@ -289,11 +293,20 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         y = Y2[:,w]
         l = L[:,w]
         # X2 = np.column_stack([np.ones_like(y),X[:,0],l,X[:,2:]])
-        X = np.column_stack([X[:,0],l,X[:,2:]])
-        X2 = np.column_stack([np.ones_like(y),X])
+        # X = np.column_stack([X[:,0],l,X[:,2:]])
+        X3 = np.column_stack([l,X])
+        
+        # adding kernels to each task variable
+        if w*window <= prestim-window:
+            X3[:,1:4] = 0;
+        elif w*window <= prestim+1500-window:
+            X3[:,3] = 0;
+        
+        
+        X2 = np.column_stack([np.ones_like(y),X3])
         ss= ShuffleSplit(n_splits=k, test_size=0.20, random_state=0)
         y2 = ndimage.gaussian_filter(y,0)
-        cv_results = cross_validate(reg, X, y2, cv = ss , 
+        cv_results = cross_validate(reg, X3, y2, cv = ss , 
                                     return_estimator = True, 
                                     scoring = 'explained_variance')
         theta = np.zeros((np.size(X2,1)-1,k))
@@ -318,8 +331,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     Yhat = np.reshape(Yhat,(int(t_period/window),N_trial2)).T
 
     
-    TT2 = np.reshape(TT2,(int(t_period/window),np.size(X,1))).T
-    CI2 = np.reshape(CI2,(int(t_period/window),np.size(X,1))).T
+    TT2 = np.reshape(TT2,(int(t_period/window),np.size(X3,1))).T
+    CI2 = np.reshape(CI2,(int(t_period/window),np.size(X3,1))).T
     score = np.reshape(score,(int(t_period/window),k))
     
     
@@ -337,8 +350,14 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
         clabels = ["contin","action","correct","stim","history"]
     elif c_ind == -2:
-        cmap = ['tab:purple', 'tab:orange','tab:blue','tab:olive']
-        clabels = ["contin","action","stim","history"]
+        cmap = ['tab:orange','tab:purple','tab:blue','tab:red','tab:red']
+        clabels = ["lick","Contingency","stim","reward","history"]
+        lstyles = ['solid','solid','solid','solid','dashed']
+        # cmap = ['tab:orange','tab:purple','tab:purple','tab:blue','tab:blue','tab:red','tab:red']
+        # clabels = ["lick","go","no-go","stim1","stim2","reward","history"]
+        # lstyles = ['solid','solid','dashed','solid','dashed','solid','dashed']
+        # cmap = ['tab:purple', 'tab:orange','tab:blue','tab:olive']
+        # clabels = ["contin","action","stim","history"]
     elif c_ind == 1 or c_ind ==2:
         cmap = ['tab:orange', 'tab:green','tab:blue']
         clabels = ["action","correct","stim"]        
@@ -349,12 +368,13 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         
         
     x_axis = np.arange(1,t_period,window)
-    for c in range(np.size(X,1)):        
-        ax2.plot(x_axis,ndimage.gaussian_filter(TT2[c,:],2),linewidth = 2.0, color = cmap[c], label = clabels[c])
+    for c in range(np.size(X3,1)):        
+        ax2.plot(x_axis,ndimage.gaussian_filter(TT2[c,:],2),linewidth = 2.0,
+                 color = cmap[c], label = clabels[c], linestyle = lstyles[c])
         ax2.fill_between(x_axis,(ndimage.gaussian_filter(TT2[c,:],2) - CI2[c,:]),
                         (ndimage.gaussian_filter(TT2[c,:],2 )+ CI2[c,:]), color=cmap[c], alpha = 0.2)
     
-    ax2.legend(loc = 'upper right')
+    # ax2.legend(loc = 'upper right')
 
     # e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])
     e_lines = np.array([0,500,500+1000,2500+1000])
@@ -377,22 +397,25 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     # 1 : lick vs no lick
     # 2 : correct vs wrong
     # 3 : stim 1 vs stim 2
-    if c_ind ==0:
-       stim_ind = X[:,3] == 1 
-    else:
-       stim_ind = X[:,3] == 1     
+    # if c_ind ==0:
+    #    # stim_ind = X3[:,3] == 1 
+    # else:
+    stim_ind1 = X3[:,2] == 1     
+    stim_ind2 = X3[:,2] == 0  
     
 
-    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2),
-             linewidth = 2.0, color = cmap[1],label = '5 kHz')
-    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2),
-             linewidth = 2.0, color = cmap[2],label = '10 kHz')
+    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
+             linewidth = 2.0, color = cmap[2],label = '5 kHz',linestyle = lstyles[3])
+    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
+             linewidth = 2.0, color = cmap[2],label = '10 kHz',linestyle = lstyles[4])
     ax1.set_title('Firing rate y')
     ax1.legend(loc = 'upper right')
 
     
-    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind,:],0),2),linewidth = 2.0, color = cmap[1])
-    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[np.invert(stim_ind),:],0),2),linewidth = 2.0, color = cmap[2]) 
+    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
+             linewidth = 2.0, color = cmap[2],linestyle = lstyles[3])
+    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind2,:],0),2),
+             linewidth = 2.0, color = cmap[2],linestyle = lstyles[4]) 
     ax3.set_title('Prediction y_hat')
 
     ax2.set_title('unit_'+str(n+1))
@@ -401,7 +424,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     plt.show()
     Model_Theta = TT2
     
-    return X, Y, Yhat, Model_Theta, score
+    return X3, Y, Yhat, Model_Theta, score
 
 # %% Main
         
@@ -421,10 +444,10 @@ Each column of X contains the following information:
 t_period = 6000
 prestim = 1000
 
-window = 100 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
-window2 = 1000
+window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
+window2 = 500
 k = 10 # number of cv
-ca = 0
+ca = 1
 
 # define c index here, according to comments within the "glm_per_neuron" function
 c_list = [-2]
@@ -464,6 +487,8 @@ for c_ind in c_list:
         except:
             print("Error, probably not enough trials") 
         
+
+
 
 
 # %% Model analysis, categorizing each neuron
@@ -540,25 +565,18 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
             best_kernel[c_ind][0,k] = int(mi)
             if np.max(np.abs(coef))>var_score[0,mi]:
                 best_kernel[c_ind][1,k] = int(np.argmax(np.abs(coef)))+1
-            best_kernel[c_ind][2,k] = norm_coef[0] 
-            best_kernel[c_ind][3,k] = norm_coef[1]
-            best_kernel[c_ind][4,k] = norm_coef[2]
-            if c_ind ==0 or c_ind == -2:  
-                best_kernel[c_ind][5,k] = norm_coef[3]
-            elif c_ind == -1:
-                best_kernel[c_ind][5,k] = norm_coef[3]
-                best_kernel[c_ind][6,k] = norm_coef[4]
-            # best_kernel[(c_ind-1)*c_ind,k] = int(mi)
-            # best_kernel[(c_ind-1)*c_ind+1,k] = int(np.argmax(np.abs(coef)))+1
-            elif c_ind == -3 or c_ind == -4:
-                best_kernel[c_ind][5,k] = norm_coef[3]
+            for i in np.arange(np.size(coef)):
+                best_kernel[c_ind][i+2,k] = norm_coef[i] 
+                
+
+            
         else:
             best_kernel[c_ind][2:b_ind,k] = np.ones((1,b_ind-2))*-1    
         k = k+1
         
     return best_kernel
 
-weight_thresh = 0.5*1e-2
+weight_thresh = 2*1e-2
 
 
 # Here we define the time period for model analysis. 
@@ -568,7 +586,7 @@ weight_thresh = 0.5*1e-2
 ana_period = np.array([0, 6000])
 for c_ind in c_list:
     if c_ind == 0 or c_ind ==-3 or c_ind == -4 or c_ind == -2:
-        b_ind = 6
+        b_ind = 9
     elif c_ind == -1:
         b_ind = 7
     else:
@@ -583,262 +601,28 @@ for c_ind in c_list:
 
 def pie_all_rules(best_kernel): 
     
-    # d_list = good_list > 179
+    d_list = good_list > 179
 
-    # d_list3 = good_list <= 179
+    d_list3 = good_list <= 179
     
     # good_list_sep = np.int_(good_list[d_list])
+    b_list = np.arange(296)
+    b_list = b_list[d_list3]
 
     
     
-    if c_ind == 0:
-        pie_labels = ["Uncategorized", "Contingency", "Action", "Correct","Stimuli"]
-        cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:green','tab:blue']
-    elif c_ind == -1:
-        pie_labels = ["Uncategorized", "Contingency", "Action", "Correct","Stimuli","history"]
-        cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
-    elif c_ind == -2:
-        pie_labels = ["Uncategorized", "Contingency", "Action","Stimuli","history"]
-        cmap = ['tab:gray','tab:purple', 'tab:orange', 'tab:blue','tab:olive']
-    
-    plt.pie(np.bincount(best_kernel[c_ind][1,:].astype(int)),labels = pie_labels, colors = cmap)
+
+    if c_ind == -2:
+        # pie_labels = ["Uncategorized", "lick","go","no-go","stim1","stim2","reward","history"]
+        # cmap = ['tab:gray','tab:orange','tab:purple','tab:purple','tab:blue','tab:blue','tab:red','tab:olive']
+        pie_labels = ["Uncategorized", "lick","Contingency","stim","reward","history"]
+        cmap = ['tab:gray','tab:orange','tab:purple','tab:blue','tab:red','tab:olive']    
+    plt.pie(np.bincount(best_kernel[c_ind][1,b_list].astype(int)),labels = pie_labels, colors = cmap)
     plt.show() 
     
-    print(np.bincount(best_kernel[c_ind][1,:].astype(int)))
+    print(np.bincount(best_kernel[c_ind][1,b_list].astype(int)))
 
 pie_all_rules(best_kernel)
-
-# %% analysis comparing rule1 and rule 2
-"""    
-Pool kernel to see change between Rule 1 and 2
-depending on how best kernel changes between rule1 and rule 2 
-we define pool kernel that shows whether encoding is acquired, lost or maintained
-
-index: 
-    0   :   Uncategorized
-    1   :   Acquired (from 0 to encoding)
-    2   :   Lost (from encoding to 0)
-    3   :   Changed (encoding nature has changed)
-    4   :   Maintained, Stim
-    5   :   Maintained, Correct
-    6   :   Maintained, Action
-    7   :   Maintained, Trial history
-    
-
-"""
-
-
-def rule1_VS_rule2(good_list,best_kernel, c_list):
-
-    pool_kernel = np.zeros((1,np.size(good_list,0)))
-    
-    for n in range(np.size(pool_kernel)):  
-
-        # if best_kernel[2][1,n] != 0 and best_kernel[1][1,n] != best_kernel[2][1,n]: # Acq
-        #     pool_kernel[0,n] = 1
-        # elif best_kernel[1][1,n] != 0 and best_kernel[2][1,n] != best_kernel[1][1,n]: # Lost
-        #     pool_kernel[0,n] = 2
-        if best_kernel[c_list[0]][1,n] == 0 and best_kernel[c_list[1]][1,n] != 0: # 
-            pool_kernel[0,n] = 1
-        elif best_kernel[c_list[1]][1,n] == 0 and best_kernel[c_list[0]][1,n] != 0:
-            pool_kernel[0,n] = 2
-        elif best_kernel[c_list[0]][1,n] != best_kernel[c_list[1]][1,n] and best_kernel[c_list[0]][1,n] != 0 and best_kernel[c_list[1]][1,n] != 0:
-            # if best_kernel[1][1,n] == 1 and best_kernel[2][1,n] ==3:
-            #     pool_kernel[0,n] = 4 # Action to stim
-            # elif best_kernel[1][1,n] == 3 and best_kernel[2][1,n] ==1:
-            #     pool_kernel[0,n] = 5 # Stim to action
-            # else:
-            pool_kernel[0,n] =3
-                 
-        elif best_kernel[c_list[0]][1,n] == best_kernel[c_list[1]][1,n] and best_kernel[c_list[1]][1,n] !=0 :
-            if best_kernel[c_list[0]][1,n] == 3:
-                pool_kernel[0,n] = 4
-            elif best_kernel[c_list[0]][1,n] == 1:
-                pool_kernel[0,n] = 6
-            elif best_kernel[c_list[0]][1,n] == 2:
-                pool_kernel[0,n] = 5
-            elif best_kernel[c_list[0]][1,n] == 4:
-                pool_kernel[0,n] = 7
-
-    # plot pie chart for categories
-    
-    fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))
-    
-    if c_list[0] > 0:
-        pie_labels = ["Uncategorized", "Action", "Correct","Stimuli"]
-        cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue']
-        pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
-                       "Stimuli","Correct","Action",]
-        cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
-                 'tab:blue','tab:green','tab:orange']
-    else:
-        pie_labels = ["Uncategorized", "Action", "Correct","Stimuli","History"]
-        cmap = ['tab:gray', 'tab:orange', 'tab:green','tab:blue','tab:olive']
-        pie_labels2 = ["Uncategorized", "Acq", "Lost","Changed",
-                       "Stimuli","Correct","Action","History"]
-        cmap2 = ['tab:gray', 'tab:red', (1,1,0),'tab:brown',
-                 'tab:blue','tab:green','tab:orange','tab:olive']
-    ax1.pie(np.bincount(best_kernel[c_list[0]][1,:].astype(int)),labels = pie_labels, colors = cmap)
-    ax2.pie(np.bincount(best_kernel[c_list[1]][1,:].astype(int)),labels = pie_labels, colors = cmap)
-    ax1.set_title('Rule1')
-    ax2.set_title('Rule2')
-
-    
-    #  "Changed,other","Action to Stim","Stim to Action",
-    #               'tab:brown',(0.5,1,1),(1,0,1),
-
-    ax3.pie(np.bincount(pool_kernel[0,:].astype(int)),labels = pie_labels2, colors = cmap2)
-    plt.show() 
-    
-
-
-
-# plotting piecharts
-# pie_all_rules(best_kernel)
-
-
-rule1_VS_rule2(good_list, best_kernel,c_list)
-
-# %% Analyzing explained variance across time. This code is mostly for c_ind = 0
-
-binsize = (t_period+prestim)/(window2/2)-1
-
-bins = np.arange(int(binsize))
-count_sig = np.zeros((1,int(binsize)))
-
-for c_ind in c_list:
-    for n in good_list2:
-        n = int(n)
-        mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
-        for b in bins:
-            if mean_score[0,b] > weight_thresh:
-                count_sig[0,b] += 1
-                
-x_axis = bins*window2*1e-3/2 -1  
-count_sig = count_sig/np.size(good_list)*1e2              
-plt.plot(x_axis,count_sig[0])
-
-fig, ax1 = plt.subplots(1,1,figsize = (5,4))
-ax1.bar(x_axis,count_sig[0],
-                   width = 0.2,
-                   edgecolor ='black')
-ax1.set_ylim([0,70])
-                
-# %% plotting beta weights of all significant neurons 
-
-if c_ind == 0 or c_ind == -2:
-    ax_sz = 4
-    cmap3 = ['tab:purple','tab:orange','tab:blue','tab:olive']
-
-elif c_ind == -1:
-    ax_sz = 5
-    cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
-
-
-fig, axes = plt.subplots(ax_sz,1,figsize = (5,10))
-bins = np.arange(1,20)
-x_axis = bins*window2*1e-3/2
-
-
-# ana_period = np.array([0, 4500])
-
-for c_ind in c_list:
-    if c_ind == 0 or c_ind == -2:
-        b_ind = 6
-    elif c_ind == -1:
-        b_ind = 7
-    else:
-        b_ind = 5
-        
-    best_kernel = get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list)
-
-
-for f in range(ax_sz):
-    axes[f].scatter(best_kernel[c_ind][0,:],best_kernel[c_ind][f+2,:],c = cmap3[f])
-    axes[f].set_ylim([0,.5])
-    axes[f].set_xticks(bins[1::2], x_axis[1::2])
-    # axes[f].hlines(y =0.25,
-    #           xmin = bins[0]-1,
-    #           xmax = bins[-1]+1,
-    #           linestyles = 'dashed',
-    #           colors = 'black', 
-    #           linewidth = 2.0)
-
-
-# %% Calculating number/fraction of neurons with significant coding for each task variable
-
-if c_ind == 0:
-    ax_sz = 4
-    
-elif c_ind == -1:
-    ax_sz = 5
-
-Frac= {}
-Frac2 = {}
-Frac = np.zeros((99,ax_sz))
-Frac2 = np.zeros((99,ax_sz))
-Fthresh = 10;
-
-
-for n in np.arange(np.size(good_list,0)):
-    # n = int(n)
-    nn = good_list[n]
-    Model_coef= Data[nn,c_ind-1]["coef"]
-    Model_score = Data[nn,c_ind-1]["score"]
-    if best_kernel[c_ind][1,n] >0:
-        for b_ind in np.arange(np.size(Model_coef,0)):
-            SD = np.std(Model_coef[b_ind,0:10])
-            coef_bi = np.abs(Model_coef[b_ind,11:] - np.mean(Model_coef[b_ind,0:10])) > Fthresh*SD
-            score_bi = np.mean(Model_score[11:,:],1) > weight_thresh
-            test = coef_bi*score_bi
-            Frac[:,b_ind] = Frac[:,b_ind] + test
-            
-            SD2 = np.std(Model_coef[b_ind,-10:])
-            coef_bi2 = np.abs(Model_coef[b_ind,0:-11] - np.mean(Model_coef[b_ind,-10:])) > Fthresh*SD
-            score_bi2 = np.mean(Model_score[0:-11,:],1) > weight_thresh
-            test2 = coef_bi2*score_bi2
-            Frac2[:,b_ind] = Frac2[:,b_ind] + test2
-                
-
-
-        
-Frac = Frac/np.size(good_list)
-Frac2 = Frac2/np.size(good_list)
-
-
-fig, axes = plt.subplots(2,1,figsize = (10,12))
-cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
-
-x_axis = np.arange(1, 4950, window)
-e_lines = np.array([0, 500, 500+1000, 2500+1000])
-e_lines = e_lines+500
-
-
-
-
-for f in range(ax_sz):
-    axes[0].plot(x_axis-500,Frac[:,f]*1e2,c = cmap3[f])
-
-axes[0].vlines(x=e_lines-500,
-            ymin=0,
-            ymax=50,
-            linestyles='dashed',
-            colors='black',
-            linewidth=2.0)
-
-axes[0].set_ylim([0,np.max(Frac)*1e2+5])
-
-for f in range(ax_sz):
-    axes[1].plot(x_axis-1000,Frac2[:,f]*1e2,c = cmap3[f])
-
-axes[1].vlines(x=e_lines-500,
-            ymin=0,
-            ymax=50,
-            linestyles='dashed',
-            colors='black',
-            linewidth=2.0)
-
-axes[1].set_ylim([0,np.max(Frac2)*1e2+5])
 
 # %% Normalized population average of task variable weights
 
@@ -848,17 +632,18 @@ d_list3 = good_list <= 179
 
 cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
 
-good_list_sep = good_list[cat_list]
+# good_list_sep = good_list[cat_list]
+good_list_sep = good_list[:]
 
 
 
 if c_ind == 0 or c_ind == -2:
-    ax_sz = 4
-    cmap3 = ['tab:purple','tab:orange','tab:blue','tab:olive']
+    cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:red']
+    ax_sz = len(cmap3)
+    clabels = ["lick","Contingency","stim","reward","history"]
+    lstyles = ['solid','solid','solid','solid','dashed']
     
-elif c_ind == -1:
-    ax_sz = 5
-    cmap3 = ['tab:purple','tab:orange','tab:green','tab:blue','tab:olive']
+
 
 Convdata = {}
 norm_score_all = {};
@@ -868,7 +653,7 @@ for b_ind in np.arange(ax_sz):
         
 for n in np.arange(np.size(good_list_sep,0)):
     # n = int(n)
-    nn = good_list_sep[n]
+    nn = int(good_list_sep[n])
     Model_coef = Data[nn, c_ind-1]["coef"]
     Model_score = Data[nn, c_ind-1]["score"]
 
@@ -880,22 +665,22 @@ for n in np.arange(np.size(good_list_sep,0)):
     else:
         norm_score = 0    
     conv = Model_coef*norm_score
-    norm_score_all[n,:] = norm_score.T
+    # norm_score_all[n,:] = norm_score.T
     for b_ind in np.arange(np.size(Model_coef, 0)):
         Convdata[b_ind][n, :] = conv[b_ind, :]
 
 
 x_axis = np.arange(1, prestim+t_period, window)
-fig, axes = plt.subplots(2,1,figsize = (10,14))
+fig, axes = plt.subplots(1,1,figsize = (10,8))
 
 for f in range(ax_sz):
         error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list_sep))
         y = ndimage.gaussian_filter(np.mean(Convdata[f],0),2)
-        axes[0].plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
-        axes[0].fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-        axes[0].set_ylim([0,0.1])
+        axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f],linestyle = lstyles[f])
+        axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
+        axes.set_ylim([0,0.20])
 
-axes[1].plot(x_axis*1e-3-prestim*1e-3,ndimage.gaussian_filter(np.mean(norm_score_all,0),2))
+# axes[1].plot(x_axis*1e-3-prestim*1e-3,ndimage.gaussian_filter(np.mean(norm_score_all,0),2))
 
 e_lines = np.array([0, 500, 500+1000, 2500+1000])
 e_lines = e_lines+500
@@ -921,196 +706,115 @@ for f in np.arange(ax_sz):
     axs[f,5].plot(np.cumsum(pca[f].explained_variance_ratio_))
     plt.savefig("test.svg", format = 'svg')
 
+    
 
-Overlap = np.zeros((ax_sz,ax_sz))
+#  Subspace overlap analysis
+            
+n_cv = 100
 
-# for f in np.arange(ax_sz): #reference
-#     V_cap1 = 1-np.linalg.norm(Convdata[f].T- 
-#                              np.dot(np.dot(Convdata[f].T,pca[f].components_.T),pca[f].components_))/np.linalg.norm(Convdata[f].T)
+# p_list = {};
+# # p_list[0] = good_list[d_list].astype(int)
+# # p_list[1] = good_list[d_list3].astype(int)
+# n_neuron = len(good_list[d_list])
 
-#     for f2 in np.arange(ax_sz): #comparison 
-#         V_cap2 = 1-np.linalg.norm(Convdata[f].T- 
-#                                  np.dot(np.dot(Convdata[f].T,pca[f2].components_.T),pca[f2].components_))/np.linalg.norm(Convdata[f].T)
-#         Overlap[f,f2] = V_cap2/V_cap1
-               
+# p_list[0] = np.arange(95)
+# p_list[1] = np.arange(95,len(good_list))
+# %% subspace overlap, angle method
+def list_shuffle(n,m,fract):
+    p_list = {};
+    p_list[0] = np.arange(n)
+    p_list[1] = np.arange(n,m)
+    
+    for p in [0,1]:
+        lp = int(np.floor(n*fract))
+        shuffle  = np.random.choice([True, False],n, p = [lp/n, 1-lp/n])
+        
+        if p == 0:
+            test = np.where(shuffle == False)
+            for pp in test[0]:
+                p_list[p][pp] = np.random.choice(p_list[1],1)
+        elif p == 1:
+            test = np.where(shuffle == False)
+            for pp in test[0]:
+                p_list[p][pp] = np.random.choice(p_list[0],1)
+    
+    return p_list
+
+
+
+Overlap = {};
+Overlap[0] = np.zeros((ax_sz,ax_sz,n_cv)); # PPC_IC
+Overlap[1] = np.zeros((ax_sz,ax_sz,n_cv)); # PPC_AC
+Overlap_across = np.zeros((ax_sz,ax_sz,n_cv));
+
+O_mean = {}
+O_std = {}
+O_mean[0] = np.zeros((ax_sz,ax_sz));
+O_std[0] = np.zeros((ax_sz,ax_sz));
+O_mean[1] = np.zeros((ax_sz,ax_sz));
+O_std[1] = np.zeros((ax_sz,ax_sz));
+
+
+n_list = {};
+n_list[0] = np.arange(95)
+n_list[1] = np.arange(95,len(good_list))
+
 
 for f in np.arange(ax_sz):
     for f2 in np.arange(ax_sz):
-        Overlap[f,f2] = np.max(np.dot(pca[f].components_, pca[f2].components_.T))
+        for k in np.arange(n_cv):
+            p_list = list_shuffle(95, len(good_list), 0.9)
+
+            for p in [0,1]:
+                S_value = np.zeros((1,20))
+                for d in np.arange(20):
+                    S_value[0,d] = np.abs(np.dot(pca[f].components_[d,p_list[p]], pca[f2].components_[d,n_list[p]].T))
+                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[f].components_[d,p_list[p]])*np.linalg.norm(pca[f].components_[d,n_list[p]]))
                         
-# fig, ax = plt.subplots(figsize = (10,10))
-
-# ax.imshow(Overlap, cmap='viridis')
-
-
-# %% Saving files
-
-# np.save('pca_PPCallv2.npy',pca)
-# np.save('Data_PPCallv2.npy', Data)
-# # pca_IC = np.load('pca_PPCIC.npy',allow_pickle=True).item()
-# # ax.set_title('pcolormesh')
-# # # set the limits of the plot to the limits of the data
-# # ax.clim(0, 1)
-# # ax.colorbar()
-
-# %%  plot PC scatter (archive)
-
-# fig, axes = plt.subplots(4,2, figsize = (15,30))
-
-# color_ind = good_list<141
-
-# for f in np.arange(ax_sz):
-#     axes[f,0].scatter(pca[f].components_[0,:],pca[f].components_[1,:],s = 15, c= color_ind, cmap = 'bwr')
-#     axes[f,0].vlines(0,-0.3,0.3,linestyles = 'dashed')
-#     axes[f,0].hlines(0,-0.3,0.3,linestyles = 'dashed')
-
-#     # axes[f,0].axis([-abs(np.max(pca[f].components_[0,:])),abs(np.max(pca[f].components_[0,:])), -abs(np.max(pca[f].components_[1,:])),abs(np.max(pca[f].components_[1,:])) ])
-#     axes[f,1].scatter(pca[f].components_[1,:],pca[f].components_[2,:],s = 15, c= color_ind, cmap ='bwr')
-#     axes[f,1].vlines(0,-0.3,0.3,linestyles = 'dashed')
-#     axes[f,1].hlines(0,-0.3,0.3,linestyles = 'dashed')
-    
-    
-# # test2 = pca[4].components_[0,color_ind]
-# # test3 = pca[4].components_[0,good_list >141]
-
-# # fig, ax = plt.subplots(2,1,figsize = (10,10))
-
-# # ax[0].hist(test2, bins = np.arange(-0.4,0.4+0.01,0.01))
-# # ax[1].hist(test3, bins = np.arange(-0.4,0.4+0.01,0.01))    
-# f = 0
+                Overlap[p][f,f2,k] = np.max(S_value)
+            # Overlap_across[f,f2,k] = np.max(np.abs(np.dot(f].components_[:,n_ind[0]], pca[c_list[1],f2].components_[:,n_ind[1]].T)*np.identity(20)))
+        for p in [0,1]:
+            O_mean[p][f,f2] = np.mean(Overlap[p][f,f2,:])
+            O_std[p][f,f2] = np.std(Overlap[p][f,f2,:])
 
 
+O_mean2 = {}
+O_std2 = {}
+O_mean2[0] = np.zeros((ax_sz,ax_sz));
+O_std2[0] = np.zeros((ax_sz,ax_sz));
+O_mean2[1] = np.zeros((ax_sz,ax_sz));
+O_std2[1] = np.zeros((ax_sz,ax_sz));
 
-# %% PCA comparison of subspace overlap (Archive)
-
-# d_list = good_list > 179
-
-# d_list3 = good_list <= 179
-
-
-# cv_ind = 50
-
-# V_cap1_all = np.zeros((5,5,cv_ind))
-# V_cap2_all = np.zeros((5,5,cv_ind))
-# for cv in np.arange(cv_ind):
-    
-#     d_list = good_list > 179
-    
-#     d_list3 = good_list <= 179
-#         # 20% shuffle
-
-#     for s in np.arange(np.size(good_list)):
-#         if d_list[s] == True:
-#             shuffle = np.random.choice(2,1, p = [0.75,0.25])
-#             if shuffle == 1:
-#                 d_list[s] = False
+for f in np.arange(ax_sz):
+    for f2 in np.arange(ax_sz):
+        for p in [0,1]:
+            O_mean2[p][f,f2] = np.mean([O_mean[p][f,f2],O_mean[p][f2,f]])
+            O_std2[p][f,f2] = np.mean([O_std[p][f,f2],O_std[p][f2,f]])
+            
+        cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive']    
+for p in [0,1]:            
+    fig, axes = plt.subplots(ax_sz,1, figsize =(7, 20))
+    for f in np.arange(ax_sz):
+        axes[f].bar(np.arange(ax_sz), O_mean2[p][f,:], yerr = O_std2[p][f,:], color = cmap3)
         
-#         if d_list3[s] == True:
-#             shuffle = np.random.choice(2,1, p = [0.75,0.25])
-#             if shuffle == 1:
-#                 d_list3[s] = False
 
+# x1 = [.8,1.8,2.8]
+# y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
+# e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
 
-    
-#     rand_sample = np.random.randint(2, size=np.size(good_list))
-#     rand_sample = np.array(rand_sample, dtype = bool)
-    
-#     d_list1 = d_list*rand_sample
-#     d_list11 = d_list*np.invert(rand_sample)
-
-
-#     d_list2 = d_list3*rand_sample
-#     d_list22 = d_list3*np.invert(rand_sample)
-    
-#     ref_ind = 1
-#     comp_ind = 0
-#     V_cap1 = np.zeros((5,5))
-#     V_cap11 = np.zeros((5,5))
-#     V_cap2 = np.zeros((5,5))
-#     V_cap22 = np.zeros((5,5))
-    
-#     for f  in np.arange(ax_sz): 
-#         for ref_ind in np.arange(5):
-#             R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
-#             V_cap1[f,ref_ind] = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],
-#                                                                   pca[f].components_[ref_ind,d_list1].T.reshape(-1,1)),
-#                                                                     pca[f].components_[ref_ind,d_list1].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list1])
-            
-#             V_cap11[f,ref_ind] = 1-np.linalg.norm(R[:,d_list11] - np.dot(np.dot(R[:,d_list11],
-#                                                                   pca[f].components_[ref_ind,d_list11].T.reshape(-1,1)),
-#                                                                     pca[f].components_[ref_ind,d_list11].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list11])
-            
-#             V_cap2[f,ref_ind] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
-#                                                                   pca[f].components_[ref_ind,d_list2].T.reshape(-1,1)),
-#                                                                     pca[f].components_[ref_ind,d_list2].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list2])
-            
-#             V_cap22[f,ref_ind] = 1-np.linalg.norm(R[:,d_list22] - np.dot(np.dot(R[:,d_list22],
-#                                                                   pca[f].components_[ref_ind,d_list22].T.reshape(-1,1)),
-#                                                                     pca[f].components_[ref_ind,d_list22].T.reshape(1,-1)))/np.linalg.norm(R[:,d_list22])
-            
-            
-            
-            
-#     V_cap1 = V_cap1 + V_cap11
-#     V_cap2 = V_cap2 + V_cap22
-      
-    
-#     V_cap1 = V_cap1.T*(1/np.sum(V_cap1,axis = 1))
-#     V_cap1_all[:,:,cv] = V_cap1.T
-    
-#     V_cap2 = V_cap2.T*(1/np.sum(V_cap2,axis = 1))
-#     V_cap2_all[:,:,cv] = V_cap2.T
-    
-    
-
-# V_cap3 = 1-np.linalg.norm(R-np.dot(np.dot(R,pca[f].components_[ref_ind,:].T.reshape(-1,1)),
-#                                     pca[f].components_[ref_ind,:].reshape(1,-1)))/np.linalg.norm(R)
-
-
-
-
-# # PCA subspace overlap, stat tests
-
-
-# fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
-
-# x_pos = [1,2]
-# for f in np.arange(ax_sz):
-    
-#     for pc in [0,1]:
-#         [s,p] = stats.ttest_ind(V_cap1_all[f,pc,:],V_cap2_all[f,pc,:],equal_var = False)
-#         PCmean = [np.mean(V_cap1_all[f,pc,:]),np.mean(V_cap2_all[f,pc,:])]
-#         PCerr = [np.std(V_cap1_all[f,pc,:]),np.std(V_cap2_all[f,pc,:])]
-#         axes[f,pc].bar(x_pos, PCmean, yerr=PCerr, align='center', alpha=0.5, color = cmap3[f], ecolor='black', capsize=10)
-#         axes[f,pc].set_xticks(x_pos)
-#         axes[f,pc].set_xticklabels(['PPC_AC', 'PPC_IC'])
-#         axes[f,pc].set_ylim([0,1])
-        
-#         if pc ==1:
-#             axes[f,pc].get_yaxis().set_visible(False)
-        
-#         if p < 0.001:
-#             # axes[f,pc].scatter([1.5], [0.75], marker = '*')
-#             axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
-#         if p >0.001 and p<0.01:
-#             axes[f,pc].scatter([1.45,1.55], [0.75,0.75], marker = '*')
-#         # if p <0.001:
-#         #     axes[f,pc].scatter([1.4,1.5,1.6], [0.75,0.75,0.75], marker = '*')
-#         # if 0.001< pc<0.01:
-#         #     axes[f,pc].scatter([1.5,1.6], [0.75,0.75], marker = '*')
-#         # if 0.01 <pc < 0.05:
-#         #     axes[f,pc].scatter([1.5], [0.75], marker = '*')
 
 
 
 # %% Calculate explained variance by each subspace across time
-xtime = np.arange(130)*50*1e-3-prestim*1e-3
+array_length = np.size(Convdata[0],1)
+
+xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
 
 d_list1 = good_list > 179
 d_list2 = good_list < 179
-V_cap1  =np.zeros((ax_sz,130,20))
-V_cap2  =np.zeros((ax_sz,130,20))
+V_cap1  =np.zeros((ax_sz,array_length,20))
+V_cap2  =np.zeros((ax_sz,array_length,20))
 
 V_cap1_base = np.zeros((ax_sz,20))
 V_cap2_base = np.zeros((ax_sz,20))
@@ -1152,7 +856,7 @@ for f  in np.arange(ax_sz):
         #                                                       pca[f].components_[:,d_list2].T),
         #                                                         pca[f].components_[:,d_list2]))/np.linalg.norm(R[:,d_list2])
         
-        for t in np.arange(130):    
+        for t in np.arange(array_length):    
             V_cap1[f,t,cv] = 1-np.linalg.norm(R[t,d_list1] - np.dot(np.dot(R[t,d_list1],
                                                                   pca[f].components_[:,d_list1].T),
                                                                     pca[f].components_[:,d_list1]))/np.linalg.norm(R[t,d_list1])
@@ -1306,16 +1010,21 @@ imageio.mimsave(file_path_name, images)
 
 # fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
 traj = {}
-xtime = np.arange(130)*5*1e-3-1e3
+xtime = np.arange(140)*5*1e-3-1e3
 for f in np.arange(ax_sz):
     R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
     
     traj[f] = {}
     # traj[f][0] = pca[f].fit_transform(R)
-    traj[f][0] = np.dot(R,pca[f].components_.T)                                   
-    traj[f][1] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
-    traj[f][2] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
-    traj[f][3] = np.dot(R,pca[f].components_.T)      # traj[f][1] + traj[f][2]
+    traj[f][0] = np.dot(R,pca[f].components_.T)  
+    traj[f][1] = np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
+    traj[f][2] = np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
+    traj[f][3] = traj[f][1] + traj[f][2]  
+
+                           
+    # traj[f][1] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list1], pca[f].components_[:,d_list1].T) #*(len(good_list)/np.sum(d_list1))
+    # traj[f][2] = np.dot(R,pca[f].components_.T)      # np.dot(R[:,d_list3], pca[f].components_[:,d_list3].T) #*(len(good_list)/np.sum(d_list3))
+    # traj[f][3] = np.dot(R,pca[f].components_.T)      # traj[f][1] + traj[f][2]
 
     draw_traj(traj,f,0)
     # distance = {}
