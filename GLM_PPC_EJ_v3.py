@@ -107,8 +107,8 @@ def find_good_data_Ca(t_period):
     
         Y = np.zeros((N_trial,int(t_period/window)))
         for tr in range(N_trial):
-            Y[tr,:] = D_ppc[n,0][0,D_ppc[n,2][tr,0]-1 
-                                 - int(prestim/window): D_ppc[n,2][tr,0] 
+            Y[tr,:] = D_ppc[n,0][0,int(D_ppc[n,2][tr,0])-1 
+                                 - int(prestim/window): int(D_ppc[n,2][tr,0])
                                  + int(t_period/window)-1 - int(prestim/window)]
         if np.mean(Y) > 0.5:
             good_list = np.concatenate((good_list,[n]))
@@ -216,6 +216,8 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     L = np.zeros((N_trial,t_period+prestim))
     for tr in range(N_trial):
         stim_onset = int(np.round(D_ppc[n,3][0,D_ppc[n,2][tr,0]]*1e3))
+        lick_onset = int(np.round(D_ppc[n,3][0,D_ppc[n,2][tr,3]]*1e3))
+        lick_onset = lick_onset-stim_onset
         L[tr,:] = L_all[0,stim_onset-prestim-1:stim_onset+t_period-1]
         
         # reformatting lick rates
@@ -228,7 +230,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
 
     X = D_ppc[n,2][:,2:6] # task variables
-
+    Rt =  D_ppc[n,5] # reward time relative to stim onset, in seconds
     t_period = t_period+prestim
     
     # re-formatting Ca traces
@@ -254,15 +256,16 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
         L2 = L2[201:D_ppc[n,4][0][0]]
 
     
-
+    # Add reward  history
     Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
     Xpre = Xpre[:,None]
+    # Add reward instead of action
     X2 = np.column_stack([X[:,0],X[:,3],
                          X[:,2]*X[:,1],Xpre]) 
     
 
     
-    return X2,Y, L2
+    return X2,Y, L2, Rt
     
 # %% Main function for GLM
 # %% glm_per_neuron function code
@@ -273,7 +276,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         X, Y, Y2,L = import_data_w_spikes(n,prestim,t_period,window,c_ind)
     else:
     # if using Ca data
-        X, Y, L = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
         Y2 = Y
     
     
@@ -300,7 +303,17 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         if w*window <= prestim-window:
             X3[:,1:4] = 0;
         elif w*window <= prestim+1500-window:
-            X3[:,3] = 0;
+            
+            if ca == 0:
+                X3[:,3]= 0;
+            elif ca == 1:
+                for tr in np.arange(np.size(L,0)):
+                    if np.isnan(Rt[tr,0]):
+                        X3[tr,3] = 0;
+                    else:
+                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
+                            X3[tr,3] = 0;
+                        
         
         
         X2 = np.column_stack([np.ones_like(y),X3])
@@ -441,7 +454,7 @@ Each column of X contains the following information:
 
 
 
-t_period = 6000
+t_period = 7000
 prestim = 1000
 
 window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
@@ -606,8 +619,8 @@ def pie_all_rules(best_kernel):
     d_list3 = good_list <= 179
     
     # good_list_sep = np.int_(good_list[d_list])
-    b_list = np.arange(296)
-    b_list = b_list[d_list3]
+    b_list = np.arange(np.size(good_list))
+    b_list = b_list[:]
 
     
     
@@ -759,6 +772,9 @@ n_list = {};
 n_list[0] = np.arange(95)
 n_list[1] = np.arange(95,len(good_list))
 
+k1 = 0
+k2 = 19
+
 
 for f in np.arange(ax_sz):
     for f2 in np.arange(ax_sz):
@@ -767,9 +783,14 @@ for f in np.arange(ax_sz):
 
             for p in [0,1]:
                 S_value = np.zeros((1,20))
-                for d in np.arange(20):
+                
+                for d in np.arange(0,20):
+                    # S_value2 = np.zeros((1,20))
+                    # for d2 in np.arange(0,20):
                     S_value[0,d] = np.abs(np.dot(pca[f].components_[d,p_list[p]], pca[f2].components_[d,n_list[p]].T))
-                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[f].components_[d,p_list[p]])*np.linalg.norm(pca[f].components_[d,n_list[p]]))
+                        
+                    # d2 = np.argmax(S_value2)
+                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[f].components_[d,p_list[p]])*np.linalg.norm(pca[f2].components_[d,n_list[p]]))
                         
                 Overlap[p][f,f2,k] = np.max(S_value)
             # Overlap_across[f,f2,k] = np.max(np.abs(np.dot(f].components_[:,n_ind[0]], pca[c_list[1],f2].components_[:,n_ind[1]].T)*np.identity(20)))
@@ -798,26 +819,68 @@ for p in [0,1]:
         axes[f].bar(np.arange(ax_sz), O_mean2[p][f,:], yerr = O_std2[p][f,:], color = cmap3)
         
 
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+for p in [0,1]:
+    axes.bar( [p, 2+p,4+p], O_mean2[p][0,[0,1,3]], yerr = O_std2[p][0,[0,1,3]], color = ['tab:orange','tab:purple','tab:red'])
+    axes.set_ylim([0,1])
+
+
 # x1 = [.8,1.8,2.8]
 # y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
 # e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
 
+test1 = Overlap[0][1,3,:]
+test2 = Overlap[1][1,3,:]
+stats.ks_2samp(test1,test2)
 
 
+
+# %% History overlap with others, testing first 5 PC for history VS the rest
+f2 = 4; # History
+for f in np.arange(ax_sz):
+        for k in np.arange(n_cv):
+            p_list = list_shuffle(95, len(good_list), 0.9)
+
+            for p in [0,1]:
+                S_value = np.zeros((1,20))
+                for d in np.arange(5,20):
+                    S_value2 = np.zeros((1,5))
+                    for d2 in np.arange(5):
+                        S_value2[0,d2] = np.abs(np.dot(pca[f].components_[d,p_list[p]], pca[f2].components_[d2,n_list[p]].T))
+                    d2 = np.argmax(S_value2)
+                    S_value[0,d] = S_value2[0,d2]/(np.linalg.norm(pca[f].components_[d,p_list[p]])*np.linalg.norm(pca[f2].components_[d2,n_list[p]]))
+                        
+                Overlap[p][f,f2,k] = np.max(S_value)
+            # Overlap_across[f,f2,k] = np.max(np.abs(np.dot(f].components_[:,n_ind[0]], pca[c_list[1],f2].components_[:,n_ind[1]].T)*np.identity(20)))
+        for p in [0,1]:
+            O_mean[p][f,f2] = np.mean(Overlap[p][f,f2,:])
+            O_std[p][f,f2] = np.std(Overlap[p][f,f2,:])
+
+
+
+# %% dendrogram
+
+from scipy.cluster.hierarchy import dendrogram, linkage
+
+Z = linkage(O_mean2[0],'single')
+
+dendrogram(Z,labels = clabels)
 
 # %% Calculate explained variance by each subspace across time
 array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-
+n_pc = 20
+n_pc1 = 5
+n_cv = 20;
 d_list1 = good_list > 179
 d_list2 = good_list < 179
-V_cap1  =np.zeros((ax_sz,array_length,20))
-V_cap2  =np.zeros((ax_sz,array_length,20))
+V_cap1  =np.zeros((ax_sz,array_length,n_cv))
+V_cap2  =np.zeros((ax_sz,array_length,n_cv))
 
-V_cap1_base = np.zeros((ax_sz,20))
-V_cap2_base = np.zeros((ax_sz,20))
+V_cap1_base = np.zeros((ax_sz,n_cv))
+V_cap2_base = np.zeros((ax_sz,n_cv))
 
 fig, axes = plt.subplots(ax_sz,1,figsize = (5,10))
 for f  in np.arange(ax_sz): 
@@ -831,8 +894,8 @@ for f  in np.arange(ax_sz):
         r_shuffle = np.arange(len(good_list))
         np.random.shuffle(r_shuffle)
         R2 = R[:,r_shuffle]
-        V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_.T),
-                                                                pca[f].components_))/np.linalg.norm(R2)
+        V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_[n_pc1:n_pc,:].T),
+                                                                pca[f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R2)
         
                 
         d_list1 = good_list > 179
@@ -858,11 +921,11 @@ for f  in np.arange(ax_sz):
         
         for t in np.arange(array_length):    
             V_cap1[f,t,cv] = 1-np.linalg.norm(R[t,d_list1] - np.dot(np.dot(R[t,d_list1],
-                                                                  pca[f].components_[:,d_list1].T),
-                                                                    pca[f].components_[:,d_list1]))/np.linalg.norm(R[t,d_list1])
+                                                                  pca[f].components_[n_pc1:n_pc,d_list1].T),
+                                                                    pca[f].components_[n_pc1:n_pc,d_list1]))/np.linalg.norm(R[t,d_list1])
             V_cap2[f,t,cv] = 1-np.linalg.norm(R[t,d_list2] - np.dot(np.dot(R[t,d_list2],
-                                                                  pca[f].components_[:,d_list2].T),
-                                                                    pca[f].components_[:,d_list2]))/np.linalg.norm(R[t,d_list2])
+                                                                  pca[f].components_[n_pc1:n_pc,d_list2].T),
+                                                                    pca[f].components_[n_pc1:n_pc,d_list2]))/np.linalg.norm(R[t,d_list2])
     
         
     
@@ -994,21 +1057,21 @@ def draw_traj(traj,f,v):
 # %%
 
 plt.close()
-draw_traj(traj,2,1)
+draw_traj(traj,4,1)
 import IPython.display as IPdisplay
 import glob
 from PIL import Image as PIL_Image
 import imageio
 
 images = [PIL_Image.open(image) for image in glob.glob('images/*.png')]
-file_path_name = 'images/SU_trajectory_Stim.gif'
+file_path_name = 'images/GLM_kernel/SU_trajectory_History.gif'
 imageio.mimsave(file_path_name, images)
 
 # writeGif(file_path_name, images, duration=0.1)
 # IPdisplay.Image(url=file_path_name)
 # %%
 
-# fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
+fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
 traj = {}
 xtime = np.arange(140)*5*1e-3-1e3
 for f in np.arange(ax_sz):
@@ -1027,13 +1090,16 @@ for f in np.arange(ax_sz):
     # traj[f][3] = np.dot(R,pca[f].components_.T)      # traj[f][1] + traj[f][2]
 
     draw_traj(traj,f,0)
-    # distance = {}
-    # distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
-    # distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
+    distance = {}
+    distance[0] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3],axis = 1)
+    distance[1] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][2][:,0:3],axis = 1)
+    distance[2] = np.linalg.norm(traj[f][1][:,0:3]-traj[f][2][:,0:3],axis = 1)
+     
     
+    axes[f,0].plot(xtime,distance[0], linestyle = 'solid')
+    axes[f,0].plot(xtime,distance[1], linestyle = 'dashed')
     
-    # axes[f,0].plot(xtime,distance[0], linestyle = 'solid')
-    # axes[f,0].plot(xtime,distance[1], linestyle = 'dashed')
+    axes[f,1].plot(xtime,distance[2])
  
     # axes[f,1].plot(xtime,distance[0]-(distance[0]+distance[1])/2, linestyle = 'solid')
     # axes[f,1].plot(xtime,distance[1]-(distance[0]+distance[1])/2, linestyle = 'dashed')   
