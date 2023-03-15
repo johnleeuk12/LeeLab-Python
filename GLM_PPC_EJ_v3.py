@@ -833,29 +833,42 @@ test1 = Overlap[0][1,3,:]
 test2 = Overlap[1][1,3,:]
 stats.ks_2samp(test1,test2)
 
+# %% Calculate var explained percentage by PC 6-20 for R
+R = ndimage.gaussian_filter(Convdata[4].T,[1,0])
+R = R[0:20,:]
+d_list1 = good_list < 179
+d_list2 = good_list >179
+
+R2 = R[:,d_list1]
+R3 = R[:,d_list2]
+
+V = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[4].components_[0:5,:].T),
+                                                        pca[4].components_[0:5,:]))/np.linalg.norm(R)
+
+Vp = np.zeros((2,ax_sz,20))
+
+for cv in np.arange(20):
+    r_shuffle2 = np.arange(np.size(R2,1))
+    r_shuffle3 = np.arange(np.size(R3,1))
+    np.random.shuffle(r_shuffle2)
+    np.random.shuffle(r_shuffle3)
+    R22 = R2[:,r_shuffle2]
+    R33 = R3[:,r_shuffle3]
+    for f in np.arange(ax_sz):
+        V1 = 1-np.linalg.norm(R22 - np.dot(np.dot(R22,pca[f].components_[5:20,d_list1].T),
+                                                            pca[f].components_[5:20,d_list1]))/np.linalg.norm(R22)
+        V2 = 1-np.linalg.norm(R33 - np.dot(np.dot(R33,pca[f].components_[5:20,d_list2].T),
+                                                            pca[f].components_[5:20,d_list2]))/np.linalg.norm(R33)
+        
+        Vp[0,f,cv] = V1/V
+        Vp[1,f,cv] = V2/V
 
 
-# %% History overlap with others, testing first 5 PC for history VS the rest
-f2 = 4; # History
-for f in np.arange(ax_sz):
-        for k in np.arange(n_cv):
-            p_list = list_shuffle(95, len(good_list), 0.9)
-
-            for p in [0,1]:
-                S_value = np.zeros((1,20))
-                for d in np.arange(5,20):
-                    S_value2 = np.zeros((1,5))
-                    for d2 in np.arange(5):
-                        S_value2[0,d2] = np.abs(np.dot(pca[f].components_[d,p_list[p]], pca[f2].components_[d2,n_list[p]].T))
-                    d2 = np.argmax(S_value2)
-                    S_value[0,d] = S_value2[0,d2]/(np.linalg.norm(pca[f].components_[d,p_list[p]])*np.linalg.norm(pca[f2].components_[d2,n_list[p]]))
-                        
-                Overlap[p][f,f2,k] = np.max(S_value)
-            # Overlap_across[f,f2,k] = np.max(np.abs(np.dot(f].components_[:,n_ind[0]], pca[c_list[1],f2].components_[:,n_ind[1]].T)*np.identity(20)))
-        for p in [0,1]:
-            O_mean[p][f,f2] = np.mean(Overlap[p][f,f2,:])
-            O_std[p][f,f2] = np.std(Overlap[p][f,f2,:])
-
+# %%
+fig, axes = plt.subplots(1,1, figsize =(10, 8))
+for f in np.arange(ax_sz-1):
+    axes.bar(f, Vp[0,f],color = cmap3[f])
+    axes.set_ylim([0,0.7])                                                                                                
 
 
 # %% dendrogram
@@ -871,8 +884,8 @@ array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-n_pc = 20
-n_pc1 = 5
+n_pc = 5
+n_pc1 = 0
 n_cv = 20;
 d_list1 = good_list > 179
 d_list2 = good_list < 179
