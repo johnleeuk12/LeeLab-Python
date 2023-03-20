@@ -261,7 +261,8 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     Xpre = Xpre[:,None]
     # Add reward instead of action
     X2 = np.column_stack([X[:,0],X[:,3],
-                         X[:,2]*X[:,1],Xpre]) 
+                          X[:,2]*X[:,1],Xpre]) 
+
     
 
     
@@ -282,6 +283,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     
     t_period = t_period+prestim
     Yhat = [];
+    Yhat1 = [];
+    Yhat2 = [];
     TT2 = [];
     Intercept = [];
     CI2 = [];
@@ -330,8 +333,9 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
             inter[:,pp] = model.intercept_
             pp = pp+1
         theta3 = np.concatenate((np.mean(inter,1),np.mean(theta,1)))
-        yhat = X2 @ theta3
-        
+        yhat = X2 @theta3
+        yhat1 = X2[0:200,:] @ theta3
+        yhat2 = X2[200:,:] @ theta3
         
         
         score = np.concatenate((score, cv_results['test_score']))
@@ -340,9 +344,14 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
         CI2 = np.concatenate((CI2,stats.sem(theta,1)))
 
         Yhat = np.concatenate((Yhat,yhat))
+        Yhat1 = np.concatenate((Yhat1,yhat1))
+        Yhat2 = np.concatenate((Yhat2,yhat2))
+        
         
     Yhat = np.reshape(Yhat,(int(t_period/window),N_trial2)).T
-
+    Yhat1 = np.reshape(Yhat1,(int(t_period/window),N_trial2)).T
+    Yhat2 = np.reshape(Yhat2,(int(t_period/window),N_trial2)).T
+    
     
     TT2 = np.reshape(TT2,(int(t_period/window),np.size(X3,1))).T
     CI2 = np.reshape(CI2,(int(t_period/window),np.size(X3,1))).T
@@ -437,7 +446,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     plt.show()
     Model_Theta = TT2
     
-    return X3, Y, Yhat, Model_Theta, score
+    return X3, Y, Yhat, Model_Theta, score, Yhat1, Yhat2
 
 # %% Main
         
@@ -490,8 +499,8 @@ for c_ind in c_list:
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y}   
+            X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca)
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}   
             t += 1
             # print(t,"/",len(good_list))
             good_list2 = np.concatenate((good_list2,[n]))
@@ -504,6 +513,8 @@ for c_ind in c_list:
 
 
 
+
+ 
 # %% Model analysis, categorizing each neuron
 """ 
 Data{score} = 100 by k
@@ -608,8 +619,25 @@ for c_ind in c_list:
     best_kernel = get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list)
         
 
-    
+# %% Error calculations
 
+cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
+
+good_list_sep = good_list[cat_list]
+
+E = np.zeros((2,np.size(good_list_sep,0)))
+
+i= 0
+for n in good_list_sep:
+    n = int(n)
+    E[0,i] = np.mean(np.abs(Data[n,c_ind-1]["Y"][0:200,:]-Data[n,c_ind-1]["Yhat"][0:200,:]))
+    E[1,i] = np.mean(np.abs(Data[n,c_ind-1]["Y"][200:,:]-Data[n,c_ind-1]["Yhat"][200:,:]))
+    i += 1
+
+    
+    
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+axes.scatter(E[0,:], E[1,:])
 # %% plot piechart for all trials
 
 def pie_all_rules(best_kernel): 
@@ -836,11 +864,8 @@ stats.ks_2samp(test1,test2)
 # %% Calculate var explained percentage by PC 6-20 for R
 R = ndimage.gaussian_filter(Convdata[4].T,[1,0])
 R = R[0:20,:]
-d_list1 = good_list < 179
-d_list2 = good_list >179
 
-R2 = R[:,d_list1]
-R3 = R[:,d_list2]
+
 
 V = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[4].components_[0:5,:].T),
                                                         pca[4].components_[0:5,:]))/np.linalg.norm(R)
@@ -848,34 +873,51 @@ V = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[4].components_[0:5,:].T),
 Vp = np.zeros((2,ax_sz,20))
 
 for cv in np.arange(20):
-    r_shuffle2 = np.arange(np.size(R2,1))
-    r_shuffle3 = np.arange(np.size(R3,1))
-    np.random.shuffle(r_shuffle2)
-    np.random.shuffle(r_shuffle3)
-    R22 = R2[:,r_shuffle2]
-    R33 = R3[:,r_shuffle3]
+    d_list1 = good_list < 179
+    d_list2 = good_list > 179
+ 
+    for s in np.arange(np.size(good_list)):
+        if d_list1[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.8,0.2])
+            if shuffle == 1:
+                d_list1[s] = False
+        
+        if d_list2[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.8,0.2])
+            if shuffle == 1:
+                d_list2[s] = False
+                
+    R2 = R[:,d_list1]
+    R3 = R[:,d_list2]               
+        
     for f in np.arange(ax_sz):
-        V1 = 1-np.linalg.norm(R22 - np.dot(np.dot(R22,pca[f].components_[5:20,d_list1].T),
-                                                            pca[f].components_[5:20,d_list1]))/np.linalg.norm(R22)
-        V2 = 1-np.linalg.norm(R33 - np.dot(np.dot(R33,pca[f].components_[5:20,d_list2].T),
-                                                            pca[f].components_[5:20,d_list2]))/np.linalg.norm(R33)
+        V1 = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_[5:20,d_list1].T),
+                                                            pca[f].components_[5:20,d_list1]))/np.linalg.norm(R2)
+        V2 = 1-np.linalg.norm(R3 - np.dot(np.dot(R3,pca[f].components_[5:20,d_list2].T),
+                                                            pca[f].components_[5:20,d_list2]))/np.linalg.norm(R3)
         
         Vp[0,f,cv] = V1/V
         Vp[1,f,cv] = V2/V
 
 
-# %%
+
+Vpmean = np.mean(Vp,axis = 2)
+Vperr = np.std(Vp,axis = 2)
+
+
 fig, axes = plt.subplots(1,1, figsize =(10, 8))
-for f in np.arange(ax_sz-1):
-    axes.bar(f, Vp[0,f],color = cmap3[f])
-    axes.set_ylim([0,0.7])                                                                                                
+for p in [0,1]:
+    for f in np.arange(ax_sz-1):
+        axes.bar(f+ p*4, Vpmean[p,f],yerr = Vperr[p,f],color = cmap3[f])
+
+axes.set_ylim([0,0.7])                                                                                                
 
 
 # %% dendrogram
 
 from scipy.cluster.hierarchy import dendrogram, linkage
 
-Z = linkage(O_mean2[0],'single')
+Z = linkage(O_mean2[1],'single')
 
 dendrogram(Z,labels = clabels)
 
@@ -884,7 +926,7 @@ array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-n_pc = 5
+n_pc = 20
 n_pc1 = 0
 n_cv = 20;
 d_list1 = good_list > 179

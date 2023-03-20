@@ -48,7 +48,7 @@ from os.path import join as pjoin
 
 # change fname for filename
 
-fname = 'PPC_GLM_dataset_AllSession_230209.mat'
+fname = 'CaData_all_withlicktime.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -175,8 +175,35 @@ def import_data_w_spikes(n,prestim,t_period,window,c_ind):
 
 def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # D_ppc = load_matfile_Ca()
+    
+    L_all = np.zeros((1,int(np.floor(D_ppc[n,3][0,max(D_ppc[n,2][:,0])]*1e3))+t_period+100))
     N_trial = np.size(D_ppc[n,2],0)
+    
+    # extracting licks, the same way
+    for l in np.floor(D_ppc[n,1]*1e3):
+        l = int(l) 
+        if l < np.size(L_all,1):
+            L_all[0,l-1] = 1 
+    
+    L = np.zeros((N_trial,t_period+prestim))
+    for tr in range(N_trial):
+        stim_onset = int(np.round(D_ppc[n,3][0,D_ppc[n,2][tr,0]]*1e3))
+        lick_onset = int(np.round(D_ppc[n,3][0,D_ppc[n,2][tr,3]]*1e3))
+        lick_onset = lick_onset-stim_onset
+        L[tr,:] = L_all[0,stim_onset-prestim-1:stim_onset+t_period-1]
+        
+        # reformatting lick rates
+    L2 = []
+    for w in range(int((t_period+prestim)/window)):
+        l = np.sum(L[:,range(window*w,window*(w+1))],1)
+        L2 = np.concatenate((L2,l)) 
+            
+    L2 = np.reshape(L2,(int((t_period+prestim)/window),N_trial)).T
+    
+
+    
     X = D_ppc[n,2][:,2:6] # task variables
+    Rt =  D_ppc[n,5] # reward time relative to stim onset, in seconds
 
     t_period = t_period+prestim
     
@@ -194,11 +221,14 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # remove conditioning trials 
         Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
         X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
+        L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)
+
     else:
     # only contain conditioning trials    
         Y = Y[201:D_ppc[n,4][0][0]]
         X = X[201:D_ppc[n,4][0][0]]
-    
+        L2 = L2[201:D_ppc[n,4][0][0]]
+
     
 
     if c_ind ==1 or c_ind ==-1: # Rule 1
@@ -206,30 +236,41 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     elif c_ind ==2 or c_ind ==-2: # Rule 2
         r_ind = np.arange(200,np.size(X,0))
         
+    
         
-    # Adding previous trial correct vs wrong
-    XHist = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-    XHist = XHist[:,None]
-    X = np.concatenate((X,XHist),1) # History is added at the end
+    # Add reward  history
+    Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
+    Xpre = Xpre[:,None]
+    X2 = np.column_stack([X[:,3],
+                         X[:,2]*X[:,1],Xpre]) 
+    # Add reward instead of action
+
+    
+    # # Adding previous trial correct vs wrong
+    # XHist = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
+    # XHist = XHist[:,None]
+    # X = np.concatenate((X,XHist),1) # History is added at the end
         
     Y = Y[r_ind,:]
-    X = X[r_ind,:]
-    X = X[:,[1,3,4]] # removing contingency and correct
+    X2 = X2[r_ind,:]
+    L2 = L2[r_ind,:]
+
+    # X = X[:,[1,3,4]] # removing contingency and correct
         
         
-    return X,Y 
+    return X2,Y, L2, Rt 
 
 
 # %% glm_per_neuron function code.
 # Main functions start here. 
-
-def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca): 
+def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on): 
     # if using spike data
     if ca == 0:
-        X, Y = import_data_w_spikes(n,prestim,t_period,window,c_ind)
+        X, Y, Y2,L = import_data_w_spikes(n,prestim,t_period,window,c_ind)
     else:
     # if using Ca data
-        X, Y = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+        Y2 = Y
     
     
     t_period = t_period+prestim
@@ -242,16 +283,40 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
 
     
     # reg = TweedieRegressor(power = 0, alpha = 0)
-    reg = Ridge (alpha = 1e1) #Using a linear regression model with Ridge regression regulator set with alpha = 1
-
+    reg = ElasticNet(alpha = 4*1e-2, l1_ratio = 0.5) #Using a linear regression model with Ridge regression regulator set with alpha = 1
+    # reg = Ridge(alpha = 4*1e-2)
     for w in range(int(t_period/window)):
-        y = Y[:,w]
-        X2 = np.column_stack([np.ones_like(y),X])
+        y = Y2[:,w]
+        l = L[:,w]
+        # X2 = np.column_stack([np.ones_like(y),X[:,0],l,X[:,2:]])
+        # X = np.column_stack([X[:,0],l,X[:,2:]])
+        X3 = np.column_stack([l,X])
+
+        
+        # adding kernels to each task variable
+        if w*window <= prestim-window:
+            X3[:,1:3] = 0;
+        elif w*window <= prestim+1500-window:
+            
+            if ca == 0:
+                X3[:,2]= 0;
+            elif ca == 1:
+                for tr in np.arange(np.size(L,0)):
+                    if np.isnan(Rt[tr,0]):
+                        X3[tr,2] = 0;
+                    else:
+                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
+                            X3[tr,2] = 0;
+                        
+        
+        
+        X2 = np.column_stack([np.ones_like(y),X3])
         ss= ShuffleSplit(n_splits=k, test_size=0.20, random_state=0)
-        cv_results = cross_validate(reg, X, y, cv = ss , 
+        y2 = ndimage.gaussian_filter(y,0)
+        cv_results = cross_validate(reg, X3, y2, cv = ss , 
                                     return_estimator = True, 
                                     scoring = 'explained_variance')
-        theta = np.zeros((np.size(X,1),k))
+        theta = np.zeros((np.size(X2,1)-1,k))
         inter = np.zeros((1,k))
         pp = 0
         for model in cv_results['estimator']:
@@ -273,91 +338,85 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca):
     Yhat = np.reshape(Yhat,(int(t_period/window),N_trial2)).T
 
     
-    TT2 = np.reshape(TT2,(int(t_period/window),np.size(X,1))).T
-    CI2 = np.reshape(CI2,(int(t_period/window),np.size(X,1))).T
+    TT2 = np.reshape(TT2,(int(t_period/window),np.size(X3,1))).T
+    CI2 = np.reshape(CI2,(int(t_period/window),np.size(X3,1))).T
     score = np.reshape(score,(int(t_period/window),k))
     
     
     
     
     # Figures
+    if fig_on == 1:
+        fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))        
     
-    fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10, 10))
+        if c_ind == 1 or c_ind ==2:
+            cmap = ['tab:orange','tab:blue']
+            clabels = ["action","stim"]        
+        elif c_ind == -1 or c_ind == -2:     # c_ind == -3 or c_ind == -4      
+            cmap = ['tab:orange','tab:blue','tab:red','tab:olive']
+            clabels = ["lick","stim","Reward","history"]
+            lstyles = ['solid','solid','solid','dashed']
+            
+        x_axis = np.arange(1,t_period,window)
+        for c in range(np.size(X3,1)):        
+            ax2.plot(x_axis,ndimage.gaussian_filter(TT2[c,:],2),linewidth = 2.0,
+                     color = cmap[c], label = clabels[c], linestyle = lstyles[c])
+            ax2.fill_between(x_axis,(ndimage.gaussian_filter(TT2[c,:],2) - CI2[c,:]),
+                            (ndimage.gaussian_filter(TT2[c,:],2 )+ CI2[c,:]), color=cmap[c], alpha = 0.2)
+        
+        # ax2.legend(loc = 'upper right')
+    
+        # e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])
+        e_lines = np.array([0,500,500+1000,2500+1000])
+        e_lines = e_lines+prestim
     
         
-
-    if c_ind == 1 or c_ind ==2:
-        cmap = ['tab:orange','tab:blue']
-        clabels = ["action","stim"]        
-    elif c_ind == -1 or c_ind == -2:     # c_ind == -3 or c_ind == -4      
-        cmap = ['tab:orange','tab:blue','tab:olive']
-        clabels = ["action","stim","history"]
+        ax2.vlines(x =e_lines, 
+                  ymin = np.amin(ndimage.gaussian_filter(TT2,sigma = [0,3])), 
+                  ymax = np.amax(ndimage.gaussian_filter(TT2,sigma = [0,3])),
+                  linestyles = 'dashed',
+                  colors = 'black', 
+                  linewidth = 2.0)
         
+        ax4.plot(x_axis,ndimage.gaussian_filter(np.mean(score,1)*1e2,1))
         
+        var_top = min(max(ndimage.gaussian_filter(np.mean(score,1)*1e2,1)),100)
+            
+        # Plotting firing rates for one condition VS the other
+        # 0 : contingency 
+        # 1 : lick vs no lick
+        # 2 : correct vs wrong
+        # 3 : stim 1 vs stim 2
+        # if c_ind ==0:
+        #    # stim_ind = X3[:,3] == 1 
+        # else:
+        stim_ind1 = X3[:,2] == 1     
+        stim_ind2 = X3[:,2] == 0  
         
-    x_axis = np.arange(1,t_period,window)
-    for c in range(np.size(X,1)):        
-        ax2.plot(x_axis,ndimage.gaussian_filter(TT2[c,:],2),linewidth = 2.0, color = cmap[c], label = clabels[c])
-        ax2.fill_between(x_axis,(ndimage.gaussian_filter(TT2[c,:],2) - CI2[c,:]),
-                        (ndimage.gaussian_filter(TT2[c,:],2 )+ CI2[c,:]), color=cmap[c], alpha = 0.2)
     
-    ax2.legend(loc = 'upper right')
-
-    # e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])
-    e_lines = np.array([0,500,500+1000,2500+1000])
-    e_lines = e_lines+prestim
-
+        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
+                 linewidth = 2.0, color = cmap[2],label = '5 kHz',linestyle = lstyles[2])
+        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
+                 linewidth = 2.0, color = cmap[2],label = '10 kHz',linestyle = lstyles[3])
+        ax1.set_title('Firing rate y')
+        ax1.legend(loc = 'upper right')
     
-    ax2.vlines(x =e_lines, 
-              ymin = np.amin(ndimage.gaussian_filter(TT2,sigma = [0,3])), 
-              ymax = np.amax(ndimage.gaussian_filter(TT2,sigma = [0,3])),
-              linestyles = 'dashed',
-              colors = 'black', 
-              linewidth = 2.0)
-    
-    ax4.plot(x_axis,ndimage.gaussian_filter(np.mean(score,1)*1e2,1))
-    
-    var_top = min(max(ndimage.gaussian_filter(np.mean(score,1)*1e2,1)),100)
         
-    # Plotting firing rates for one condition VS the other
-    # 0 : lick vs no lick
-    # 1 : stim 1 vs stim 2
-    # 2 : trial History
-    if c_ind ==0:
-       stim_ind = X[:,2] == 1 
-    else:
-       stim_ind = X[:,1] == 1     
+        ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
+                 linewidth = 2.0, color = cmap[2],linestyle = lstyles[2])
+        ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind2,:],0),2),
+                 linewidth = 2.0, color = cmap[2],linestyle = lstyles[3]) 
+        ax3.set_title('Prediction y_hat')
     
-
-    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2),
-             linewidth = 2.0, color = cmap[1],label = '5 kHz')
+        ax2.set_title('unit_'+str(n+1))
+        ax4.set_title('explained variance')
+        ax4.set_ylim(bottom = -2, top = var_top)
+        plt.show()
     
-     
-    # ax1.fill_between(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2)-stats.sem(Y[stim_ind,:],0),
-    #                  ndimage.gaussian_filter(np.mean(Y[stim_ind,:],0),2)+stats.sem(Y[stim_ind,:],0))
     
-    ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2),
-             linewidth = 2.0, color = cmap[2],label = '10 kHz')
-    
-    # ax1.fill_between(x_axis,ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2)-stats.sem(Y[np.invert(stim_ind),:],0),
-    #                  ndimage.gaussian_filter(np.mean(Y[np.invert(stim_ind),:],0),2)+stats.sem(Y[np.invert(stim_ind),:],0))
-    
-    ax1.set_title('Firing rate y')
-    ax1.legend(loc = 'upper right')
-
-    
-    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind,:],0),2),linewidth = 2.0, color = cmap[1])
-    ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[np.invert(stim_ind),:],0),2),linewidth = 2.0, color = cmap[2]) 
-    ax3.set_title('Prediction y_hat')
-
-    ax2.set_title('unit_'+str(n+1))
-    ax4.set_title('explained variance')
-    ax4.set_ylim(bottom = -2, top = var_top)
-    plt.show()
     Model_Theta = TT2
-    
-    return X, Y, Yhat, Model_Theta, score
 
+    return X3, Y, Yhat, Model_Theta, score   
 
 # %% Run main GLM code
 """     
@@ -371,13 +430,13 @@ Each column of X contains the following information:
 
 
 
-t_period = 6000
-prestim = 500
+t_period = 7000
+prestim = 1000
 
 window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
 window2 = 500
 k = 10 # number of cv
-ca = 0
+ca = 1
 
 # define c index here, according to comments within the "glm_per_neuron" function
 c_list = [-1,-2]
@@ -397,21 +456,26 @@ Data = {}
 
 
 # change c_ind and n here. 
-
+good_list3 = {}
 for c_ind in c_list:
     t = 0 
     good_list2 = [];
+    good_list3[c_ind] =[];
     for n in good_list:
         
         n = int(n)
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca)
+            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,0)
             Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y}   
             t += 1
-            # print(t,"/",len(good_list))
             good_list2 = np.concatenate((good_list2,[n]))
+            # print(t,"/",len(good_list))
+            if np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) <= 0.99 and np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) >= 0.01:
+                good_list3[c_ind] = np.concatenate((good_list3[c_ind],[n]))
+            
+            print(n)
         except KeyboardInterrupt:
             break
         except:
@@ -460,8 +524,8 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
     return max_ind, best_score, coef, model_mean, score_mean
 
 # %% Calculating best_kernel
-
-
+# good_list_int = np.intersect1d(good_list3[-1],good_list3[-2])
+# good_list2 = good_list_int
 best_kernel = {}
 
 """
@@ -523,7 +587,7 @@ for c_ind in c_list:
 
 
 # %% Normalized population average of task variable weights
-
+# good_list = good_list_int
 d_list = good_list > 179
 
 d_list3 = good_list <= 179
@@ -538,8 +602,8 @@ Convdata = {};
 
 for c_ind in c_list:
     if c_ind == -1 or c_ind == -2:
-        ax_sz = 3
-        cmap3 = ['tab:orange','tab:blue','tab:olive']
+        ax_sz = 4
+        cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
     
         
     elif c_ind == 1 or c_ind == 2:
@@ -579,7 +643,7 @@ for c_ind in c_list:
             y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
             axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
             axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-            axes.set_ylim([-0,0.25])
+            axes.set_ylim([-0.10,0.10])
     
     
     e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -647,6 +711,22 @@ for f in np.arange(ax_sz):
 x1 = [.8,1.8,2.8]
 y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
 e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
+
+
+# %% dendrogram
+
+from scipy.cluster.hierarchy import dendrogram, linkage
+
+
+O_mean2 = np.concatenate((np.concatenate((np.mean(Overlap[-1],2),O_mean.T),axis = 1)
+            ,np.concatenate((O_mean,np.mean(Overlap[-2],2)),axis = 1)),axis = 0)
+
+
+Z = linkage(O_mean2,'complete')
+
+fig, ax = plt.subplots(1,1,figsize =  (10,8))
+dn1 = dendrogram(Z,labels = ['R1_Lick','R1_Stim','R1_Rew','R1_Hist','R2_Lick','R2_Stim','R2_Rew','R2_Hist'])
+
 
 
 # %%
