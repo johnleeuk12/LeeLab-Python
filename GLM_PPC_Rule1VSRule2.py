@@ -418,6 +418,95 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on):
 
     return X3, Y, Yhat, Model_Theta, score   
 
+
+
+# %% Model analysis, categorizing each neuron
+""" 
+Data{score} = 100 by k
+Data{coef}  = n_x by 100 where n_x is the number of variables
+window2      :   score and weight coefs are binned by a moving window 
+                 with step size bin_size and window size window2 
+
+OUTPUT
+max_ind     :   best index for peak of score(explained variance) (not in ms)
+best_score  :   average score at max_ind
+coef        :   Weight coefficients at max_ind
+model_mean  :   Weight coefficients across t_period
+   
+"""
+def Model_analysis(n,window, window2,Data,c_ind,ana_period):
+    
+    # time currently defined by window size* data size. ana_period should also be defined thus 
+    bin_size = int(window2/window)
+    ana_bin = ana_period/(window2/2)
+
+    Dat_length  = np.size(Data[n,c_ind-1]["score"],0)
+    Model_Theta = Data[n,c_ind-1]["coef"]/(np.max(np.abs(Data[n,c_ind-1]["coef"]))+1) # Soft normalization
+
+    score_mean  = np.zeros((1,2*int(Dat_length/bin_size)))
+    score_pool  = np.zeros((np.size(Data[n,c_ind-1]["score"],1),2*int(Dat_length/bin_size)))
+    score_var   = np.zeros((1,2*int(Dat_length/bin_size)))
+    model_mean  = np.zeros((np.size(Model_Theta,0),2*int(Dat_length/bin_size)))
+    
+    k = 0;
+    for ind in np.arange(0,Dat_length-bin_size/2,int(bin_size/2)):
+        ind = int(ind)
+        score_pool[:,k] = np.mean(Data[n,c_ind-1]["score"][ind:ind+bin_size,:],0)
+        score_mean[0,k] = np.mean(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
+        score_var[0,k]  = np.var(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
+        model_mean[:,k] = np.mean(np.abs(Model_Theta[:,ind:ind+bin_size]),1)
+        k = k+1
+    
+    max_ind = np.argmax(score_mean[0,int(ana_bin[0]):int(ana_bin[1])]) + int(ana_bin[0])
+    best_score = score_mean[0,max_ind]
+    coef = model_mean[:,max_ind]
+    
+    
+    return max_ind, best_score, coef, model_mean, score_mean, score_var, score_pool
+
+# %% 
+
+def build_model(n, t_period, prestim, window,k,c_ind,ca):
+    for m_ind in [0,1,2,3,4]:
+        X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind,0)
+        Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
+        mi, bs, coef,beta_weights,mean_score, var_score,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
+        S[0,m_ind] = mean_score[0,mi]
+        mean_score[mean_score<weight_thresh] = 0
+        DataS[n,c_ind-1,m_ind] = {"mean_score" : mean_score, "var_score" : var_score,"score_pool" : score_pool}
+    maxS = np.argmax(S)
+    max_score_pool = DataS[n,c_ind-1,maxS]["score_pool"]
+    
+    it = 0
+    while it < 5:
+        p = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
+        mean_score_pool = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
+        if np.any(DataS[n,c_ind-1,np.argmax(S)]["mean_score"] >  DataS[n,c_ind-1,np.argmax(S)]["var_score"]):
+            for m_ind in [0,1,2,3,4]:
+                m_ind2 = np.unique(np.append(maxS,m_ind))
+                X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind2,0)
+                Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
+                mi, bs, coef,beta_weights,mean_score, var_score ,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
+                S[0,m_ind] = mean_score[0,mi]
+                mean_score[mean_score<weight_thresh] = 0
+                DataS[n,c_ind-1,m_ind] = {"mean_score" : mean_score, "var_score" : var_score,"score_pool" : score_pool}
+                mean_score_pool[m_ind,:] = mean_score
+                for t in np.arange(np.size(max_score_pool,1)):
+                    s,p[m_ind,t] = stats.ks_2samp(score_pool[:,t], max_score_pool[:,t], alternative = 'less')
+        
+        p = p<0.05
+        if np.any(p) == True:
+            T = mean_score_pool-np.mean(max_score_pool,0) 
+            T = T*p
+
+            maxS = np.unique(np.append(maxS,np.argmax(np.max(T,1))))
+            max_score_pool = DataS[n,c_ind-1,np.argmax(np.max(T,1))]["score_pool"]
+            it += 1
+        else:
+            it = 5   
+    
+    return maxS
+
 # %% Run main GLM code
 """     
 Each column of X contains the following information:
@@ -453,7 +542,11 @@ else:
 
 Data = {}
 
-
+# additional code for explained variance comparison
+DataS = {}
+S = np.zeros((1,5))
+ana_period = np.array([0, t_period+prestim])
+weight_thresh = 2*1e-2
 
 # change c_ind and n here. 
 good_list3 = {}
