@@ -263,7 +263,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
 # %% glm_per_neuron function code.
 # Main functions start here. 
-def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on): 
+def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on): 
     # if using spike data
     if ca == 0:
         X, Y, Y2,L = import_data_w_spikes(n,prestim,t_period,window,c_ind)
@@ -291,6 +291,10 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on):
         # X2 = np.column_stack([np.ones_like(y),X[:,0],l,X[:,2:]])
         # X = np.column_stack([X[:,0],l,X[:,2:]])
         X3 = np.column_stack([l,X])
+        
+        Xm = np.zeros_like(X3)
+        Xm[:,m_ind] = 1
+        X3 = X3*Xm
 
         
         # adding kernels to each task variable
@@ -467,8 +471,8 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
 # %% 
 
 def build_model(n, t_period, prestim, window,k,c_ind,ca):
-    for m_ind in [0,1,2,3,4]:
-        X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind,0)
+    for m_ind in [0,1,2,3]:
+        X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind,0)
         Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
         mi, bs, coef,beta_weights,mean_score, var_score,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         S[0,m_ind] = mean_score[0,mi]
@@ -478,13 +482,13 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
     max_score_pool = DataS[n,c_ind-1,maxS]["score_pool"]
     
     it = 0
-    while it < 5:
+    while it < 4:
         p = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         mean_score_pool = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         if np.any(DataS[n,c_ind-1,np.argmax(S)]["mean_score"] >  DataS[n,c_ind-1,np.argmax(S)]["var_score"]):
-            for m_ind in [0,1,2,3,4]:
+            for m_ind in [0,1,2,3]:
                 m_ind2 = np.unique(np.append(maxS,m_ind))
-                X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind2,0)
+                X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind2,0)
                 Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
                 mi, bs, coef,beta_weights,mean_score, var_score ,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
                 S[0,m_ind] = mean_score[0,mi]
@@ -503,7 +507,7 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
             max_score_pool = DataS[n,c_ind-1,np.argmax(np.max(T,1))]["score_pool"]
             it += 1
         else:
-            it = 5   
+            it = 4   
     
     return maxS
 
@@ -544,7 +548,8 @@ Data = {}
 
 # additional code for explained variance comparison
 DataS = {}
-S = np.zeros((1,5))
+ax_sz = 4
+S = np.zeros((1,ax_sz))
 ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
 
@@ -560,13 +565,17 @@ for c_ind in c_list:
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,0)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y}   
-            t += 1
+            
+            maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
+               
+            X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
+
+
             good_list2 = np.concatenate((good_list2,[n]))
             # print(t,"/",len(good_list))
-            if np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) <= 0.99 and np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) >= 0.01:
-                good_list3[c_ind] = np.concatenate((good_list3[c_ind],[n]))
+            # if np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) <= 0.99 and np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) >= 0.01:
+            #     good_list3[c_ind] = np.concatenate((good_list3[c_ind],[n]))
             
             print(n)
         except KeyboardInterrupt:

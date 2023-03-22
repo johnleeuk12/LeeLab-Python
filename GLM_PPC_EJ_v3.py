@@ -303,24 +303,24 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         X3 = np.column_stack([l,X])
         
         # adding kernels to each task variable
-        if w*window <= prestim-window:
-            X3[:,1:4] = 0;
-        elif w*window <= prestim+1500-window:
+        # if w*window <= prestim-window:
+        #     X3[:,1:4] = 0;
+        # elif w*window <= prestim+1500-window:
             
-            if ca == 0:
-                X3[:,3]= 0;
-            elif ca == 1:
-                for tr in np.arange(np.size(L,0)):
-                    if np.isnan(Rt[tr,0]):
-                        X3[tr,3] = 0;
-                    else:
-                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
-                            X3[tr,3] = 0;
+        #     if ca == 0:
+        #         X3[:,3]= 0;
+        #     elif ca == 1:
+        #         for tr in np.arange(np.size(L,0)):
+        #             if np.isnan(Rt[tr,0]):
+        #                 X3[tr,3] = 0;
+        #             else:
+        #                 if w*window <= prestim + Rt[tr,0]*1e3 -window:
+        #                     X3[tr,3] = 0;
                         
         
-        Xm = np.zeros_like(X3)
-        Xm[:,m_ind] = 1
-        X3 = X3*Xm
+        # Xm = np.zeros_like(X3)
+        # Xm[:,m_ind] = 1
+        # X3 = X3*Xm
         
         
         
@@ -586,7 +586,7 @@ Data = {}
 # additional code for explained variance comparison
 DataS = {}
 S = np.zeros((1,5))
-ana_period = np.array([0, 8000])
+ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
 
 # change c_ind and n here. 
@@ -600,8 +600,8 @@ for c_ind in c_list:
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
-               
+            # maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
+            maxS = [0,1,2,3,4]   
             X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
             # t += 1
@@ -618,12 +618,43 @@ for c_ind in c_list:
         
 
 # %% Save Data since it takes forever
-np.save('Data_PPCAll_Ca_v3.npy', Data)
+# # np.save('Data_PPCAll_Ca_v3.npy', Data)
+
+# Data = np.load('D:\Python\Data_PPCAll_Ca_V3.npy',allow_pickle= True).item()
+# score_diff = np.zeros((len(good_list),160))
+
+# t = 0
+# for n in good_list:
+#     n = int(n)
+    
+#     score_2 = np.mean(Data[n,c_ind-1]["score"],1).T
+#     score_2[score_2 <= 0] = 0
+#     score_1 = np.mean(DataS[n,c_ind-1]["score"],1).T
+#     score_1[score_1 <= 0] = 0
+    
+    
+    
+#     score_diff[t,:] = (score_2-score_1)/(max([max(score_1),max(score_2)]) +0.02)
+#     t += 1
+    
+    
+    
+# fig, axs = plt.subplots(1,1,figsize= (10,8))
+
+# x_axis = np.arange(160)*0.05-1
 
 
- 
+# s,p = stats.ttest_1samp(score_diff,np.zeros((1,160)))
+# p = p> 0.05
+
+# axs.plot(x_axis,ndimage.gaussian_filter(np.mean(score_diff,0), 1),linewidth = 2.0)
+# axs.fill_between(x_axis,ndimage.gaussian_filter(np.mean(score_diff,0), 1)-ndimage.gaussian_filter(np.std(score_diff,0), 1),
+#                  ndimage.gaussian_filter(np.mean(score_diff,0), 1)+ndimage.gaussian_filter(np.std(score_diff,0), 1)
+#                  ,alpha = 0.2)
 
 
+# T = x_axis*p
+# T2 = np.ones_like(p)*0.05
 # %% Calculating best_kernel
 
 
@@ -743,6 +774,7 @@ cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
 # good_list_sep = good_list[cat_list]
 good_list_sep = good_list[:]
 
+weight_thresh = 2*1e-2
 
 
 if c_ind == 0 or c_ind == -2:
@@ -805,8 +837,8 @@ pca = {};
 for f in np.arange(ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
     pca[f] = PCA(n_components=20) 
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
-    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
+    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
     
     test = test.T
     for t in range(5):
@@ -928,14 +960,30 @@ test1 = Overlap[0][1,3,:]
 test2 = Overlap[1][1,3,:]
 stats.ks_2samp(test1,test2)
 
+
+
+
+
 # %% Calculate var explained percentage by PC 6-20 for R
 R = ndimage.gaussian_filter(Convdata[4].T,[1,0])
-R = R[0:20,:]
+# R = R[0:20,]
+
+d_list1 = good_list < 179
+d_list2 = good_list > 179
 
 npc = [0,3,20]
 
-V = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[4].components_[npc[0]:npc[1],:].T),
-                                                        pca[4].components_[npc[0]:npc[1],:]))/np.linalg.norm(R)
+V = 1-np.linalg.norm(R[:,:] - np.dot(np.dot(R[:,:],pca[4].components_[:,:].T),
+                                                        pca[4].components_[:,:]))/np.linalg.norm(R[:,:])
+
+
+V_ac = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],pca[4].components_[npc[0]:npc[1],d_list2].T),
+                                                        pca[4].components_[npc[0]:npc[1],d_list2]))/np.linalg.norm(R[:,d_list2])
+
+V_ic = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],pca[4].components_[npc[0]:npc[1],d_list1].T),
+                                                        pca[4].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R[:,d_list1])
+
+
 
 Vp = np.zeros((2,ax_sz,20))
 
@@ -945,12 +993,12 @@ for cv in np.arange(20):
  
     for s in np.arange(np.size(good_list)):
         if d_list1[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.8,0.2])
+            shuffle = np.random.choice(2,1, p = [0.9,0.1])
             if shuffle == 1:
                 d_list1[s] = False
         
         if d_list2[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.8,0.2])
+            shuffle = np.random.choice(2,1, p = [0.9,0.1])
             if shuffle == 1:
                 d_list2[s] = False
                 
@@ -963,8 +1011,8 @@ for cv in np.arange(20):
         V2 = 1-np.linalg.norm(R3 - np.dot(np.dot(R3,pca[f].components_[npc[0]:npc[1],d_list2].T),
                                                             pca[f].components_[npc[0]:npc[1],d_list2]))/np.linalg.norm(R3)
         
-        Vp[0,f,cv] = V1/V
-        Vp[1,f,cv] = V2/V
+        Vp[0,f,cv] = V1/V_ic
+        Vp[1,f,cv] = V2/V_ac
 
 
 
@@ -984,7 +1032,7 @@ axes.set_ylim([0,0.7])
 
 from scipy.cluster.hierarchy import dendrogram, linkage
 
-Z = linkage(O_mean2[1],'single')
+Z = linkage(O_mean2[0],'single')
 
 dendrogram(Z,labels = clabels)
 
@@ -993,8 +1041,8 @@ array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-n_pc = 20
-n_pc1 = 3
+n_pc = 10
+n_pc1 = 0
 n_cv = 20;
 d_list1 = good_list > 179
 d_list2 = good_list < 179
