@@ -965,23 +965,27 @@ stats.ks_2samp(test1,test2)
 
 
 # %% Calculate var explained percentage by PC 6-20 for R
-R = ndimage.gaussian_filter(Convdata[4].T,[1,0])
-# R = R[0:20,]
+
 
 d_list1 = good_list < 179
 d_list2 = good_list > 179
 
+
+R = ndimage.gaussian_filter(Convdata[4][d_list2,:].T,[1,0])
+R0 = R[0:20,:]
+R = R[40:,:]
+
 npc = [0,3,20]
 
-V = 1-np.linalg.norm(R[:,:] - np.dot(np.dot(R[:,:],pca[4].components_[:,:].T),
-                                                        pca[4].components_[:,:]))/np.linalg.norm(R[:,:])
+V = 1-np.linalg.norm(R0[:,:] - np.dot(np.dot(R0[:,:],pca[4].components_[npc[0]:npc[1],:].T),
+                                                        pca[4].components_[npc[0]:npc[1],:]))/np.linalg.norm(R0[:,:])
 
 
-V_ac = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],pca[4].components_[npc[0]:npc[1],d_list2].T),
-                                                        pca[4].components_[npc[0]:npc[1],d_list2]))/np.linalg.norm(R[:,d_list2])
+# V_ac = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],pca[4].components_[npc[0]:npc[1],d_list2].T),
+#                                                         pca[4].components_[npc[0]:npc[1],d_list2]))/np.linalg.norm(R[:,d_list2])
 
-V_ic = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],pca[4].components_[npc[0]:npc[1],d_list1].T),
-                                                        pca[4].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R[:,d_list1])
+# V_ic = 1-np.linalg.norm(R[:,d_list1] - np.dot(np.dot(R[:,d_list1],pca[4].components_[npc[0]:npc[1],d_list1].T),
+#                                                         pca[4].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R[:,d_list1])
 
 
 
@@ -993,39 +997,46 @@ for cv in np.arange(20):
  
     for s in np.arange(np.size(good_list)):
         if d_list1[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.9,0.1])
+            shuffle = np.random.choice(2,1, p = [0.8,0.2])
             if shuffle == 1:
                 d_list1[s] = False
         
         if d_list2[s] == True:
-            shuffle = np.random.choice(2,1, p = [0.9,0.1])
+            shuffle = np.random.choice(2,1, p = [0.8,0.2])
             if shuffle == 1:
                 d_list2[s] = False
                 
-    R2 = R[:,d_list1]
-    R3 = R[:,d_list2]               
+    # R2 = R[:,d_list1]
+    # R3 = R[:,d_list2]               
         
     for f in np.arange(ax_sz):
-        V1 = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_[npc[0]:npc[1],d_list1].T),
-                                                            pca[f].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R2)
-        V2 = 1-np.linalg.norm(R3 - np.dot(np.dot(R3,pca[f].components_[npc[0]:npc[1],d_list2].T),
-                                                            pca[f].components_[npc[0]:npc[1],d_list2]))/np.linalg.norm(R3)
+        # V1 = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_[npc[0]:npc[1],d_list1].T),
+        #                                                     pca[f].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R2)
+        V2 = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[f].components_[npc[0]:npc[1],:].T),
+                                                            pca[f].components_[npc[0]:npc[1],:]))/np.linalg.norm(R)
         
-        Vp[0,f,cv] = V1/V_ic
-        Vp[1,f,cv] = V2/V_ac
+        # Vp[0,f,cv] = V1/V_ic
+        Vp[1,f,cv] = V2/V
 
 
 
 Vpmean = np.mean(Vp,axis = 2)
 Vperr = np.std(Vp,axis = 2)
 
+fig, axes = plt.subplots(1,1, figsize = (10,8))
 
-fig, axes = plt.subplots(1,1, figsize =(10, 8))
-for p in [0,1]:
-    for f in np.arange(ax_sz-1):
-        axes.bar(f+ p*4, Vpmean[p,f],yerr = Vperr[p,f],color = cmap3[f])
+for f in np.arange(ax_sz-1):
+    axes.bar(f, Vpmean[1,f],yerr = Vperr[1,f],color = cmap3[f])
 
-axes.set_ylim([0,0.7])                                                                                                
+
+axes.set_ylim([0,0.7])   
+
+# fig, axes = plt.subplots(1,1, figsize =(10, 8))
+# for p in [0,1]:
+#     for f in np.arange(ax_sz-1):
+#         axes.bar(f+ p*4, Vpmean[p,f],yerr = Vperr[p,f],color = cmap3[f])
+
+                                                                                             
 
 
 # %% dendrogram
@@ -1119,19 +1130,19 @@ for f  in np.arange(ax_sz):
 
 # %% PCA angle difference?
 
-# ref_ind = 2
-# comp_ind = 0
-# angle1 = np.dot(pca_all[4].components_[ref_ind,d_list], pca_AC[4].components_[comp_ind,:])
-# angle2 = np.dot(pca_all[4].components_[ref_ind,d_list2], pca_IC[4].components_[comp_ind,:])
+# # ref_ind = 2
+# # comp_ind = 0
+# # angle1 = np.dot(pca_all[4].components_[ref_ind,d_list], pca_AC[4].components_[comp_ind,:])
+# # angle2 = np.dot(pca_all[4].components_[ref_ind,d_list2], pca_IC[4].components_[comp_ind,:])
 
-A = {}
-for f in np.arange(ax_sz):
-    A[f] = np.zeros((2,4))
-    for ref_ind in [0,1]:
-        for comp_ind in [0,1]:
-            A[f][ref_ind,comp_ind] = np.dot(pca_all[f].components_[ref_ind,d_list], pca_AC[f].components_[comp_ind,:])
-            A[f][ref_ind,comp_ind+2] = np.dot(pca_all[f].components_[ref_ind,d_list2], pca_IC[f].components_[comp_ind,:])
-    A[f] = np.abs(A[f])
+# A = {}
+# for f in np.arange(ax_sz):
+#     A[f] = np.zeros((2,4))
+#     for ref_ind in [0,1]:
+#         for comp_ind in [0,1]:
+#             A[f][ref_ind,comp_ind] = np.dot(pca_all[f].components_[ref_ind,d_list], pca_AC[f].components_[comp_ind,:])
+#             A[f][ref_ind,comp_ind+2] = np.dot(pca_all[f].components_[ref_ind,d_list2], pca_IC[f].components_[comp_ind,:])
+#     A[f] = np.abs(A[f])
     
     
     

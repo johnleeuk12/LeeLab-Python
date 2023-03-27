@@ -583,47 +583,6 @@ for c_ind in c_list:
         except:
             print("Error, probably not enough trials") 
         
-# %% Model analysis, categorizing each neuron
-""" 
-Data{score} = 100 by k
-Data{coef}  = n_x by 100 where n_x is the number of variables
-window2      :   score and weight coefs are binned by a moving window 
-                 with step size bin_size and window size window2 
-
-OUTPUT
-max_ind     :   best index for peak of score(explained variance) (not in ms)
-best_score  :   average score at max_ind
-coef        :   Weight coefficients at max_ind
-model_mean  :   Weight coefficients across t_period
-   
-"""
-def Model_analysis(n,window, window2,Data,c_ind,ana_period):
-    
-    # time currently defined by window size* data size. ana_period should also be defined thus 
-    bin_size = int(window2/window)
-    ana_bin = ana_period/(window2/2)
-
-    Dat_length  = np.size(Data[n,c_ind-1]["score"],0)
-    Model_Theta = Data[n,c_ind-1]["coef"]/(np.max(np.abs(Data[n,c_ind-1]["coef"]))+1) # Soft normalization
-
-    score_mean  = np.zeros((1,2*int(Dat_length/bin_size)))
-    score_var   = np.zeros((1,2*int(Dat_length/bin_size)))
-    model_mean  = np.zeros((np.size(Model_Theta,0),2*int(Dat_length/bin_size)))
-    
-    k = 0;
-    for ind in np.arange(0,Dat_length-bin_size/2,int(bin_size/2)):
-        ind = int(ind)
-        score_mean[0,k] = np.mean(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
-        score_var[0,k]  = np.var(Data[n,c_ind-1]["score"][ind:ind+bin_size,:])
-        model_mean[:,k] = np.mean(Model_Theta[:,ind:ind+bin_size],1)
-        k = k+1
-    
-    max_ind = np.argmax(score_mean[0,int(ana_bin[0]):int(ana_bin[1])]) + int(ana_bin[0])
-    best_score = score_mean[0,max_ind]
-    coef = model_mean[:,max_ind]
-    
-    
-    return max_ind, best_score, coef, model_mean, score_mean
 
 # %% Calculating best_kernel
 # good_list_int = np.intersect1d(good_list3[-1],good_list3[-2])
@@ -650,7 +609,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
     k = 0;
     for n in good_list2:
         n = int(n)
-        mi, bs, coef,beta_weights,mean_score = Model_analysis(n, window, window2, Data,c_ind,ana_period)
+        mi, bs, coef,beta_weights,mean_score,score_var,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
         # Y_mean = np.mean(Data[n,c_ind-1]["Y"])
         if bs > weight_thresh:
@@ -832,10 +791,10 @@ dn1 = dendrogram(Z,labels = ['R1_Lick','R1_Stim','R1_Rew','R1_Hist','R2_Lick','R
 
 
 # %%
-fig, ax = plt.subplots()
-ax.errorbar(x, y, e, linestyle='None', marker='^')
-ax.errorbar(x1, y1, e1, linestyle='None', marker='^')
-ax.set_ylim([0,0.6])
+# fig, ax = plt.subplots()
+# ax.errorbar(x, y, e, linestyle='None', marker='^')
+# ax.errorbar(x1, y1, e1, linestyle='None', marker='^')
+# ax.set_ylim([0,0.6])
 
 # baseline = np.zeros((18,1))
 # k = 0
