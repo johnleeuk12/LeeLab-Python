@@ -303,24 +303,24 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         X3 = np.column_stack([l,X])
         
         # adding kernels to each task variable
-        # if w*window <= prestim-window:
-        #     X3[:,1:4] = 0;
-        # elif w*window <= prestim+1500-window:
+        if w*window <= prestim-window:
+            X3[:,1:4] = 0;
+        elif w*window <= prestim+1500-window:
             
-        #     if ca == 0:
-        #         X3[:,3]= 0;
-        #     elif ca == 1:
-        #         for tr in np.arange(np.size(L,0)):
-        #             if np.isnan(Rt[tr,0]):
-        #                 X3[tr,3] = 0;
-        #             else:
-        #                 if w*window <= prestim + Rt[tr,0]*1e3 -window:
-        #                     X3[tr,3] = 0;
+            if ca == 0:
+                X3[:,3]= 0;
+            elif ca == 1:
+                for tr in np.arange(np.size(L,0)):
+                    if np.isnan(Rt[tr,0]):
+                        X3[tr,3] = 0;
+                    else:
+                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
+                            X3[tr,3] = 0;
                         
         
-        # Xm = np.zeros_like(X3)
-        # Xm[:,m_ind] = 1
-        # X3 = X3*Xm
+        Xm = np.zeros_like(X3)
+        Xm[:,m_ind] = 1
+        X3 = X3*Xm
         
         
         
@@ -600,8 +600,8 @@ for c_ind in c_list:
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            # maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
-            maxS = [0,1,2,3,4]   
+            maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
+            # maxS = [0,1,2,3,4]   
             X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
             # t += 1
