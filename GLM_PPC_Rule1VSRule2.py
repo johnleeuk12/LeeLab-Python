@@ -569,7 +569,7 @@ for c_ind in c_list:
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
                
             X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
 
 
             good_list2 = np.concatenate((good_list2,[n]))
@@ -645,7 +645,31 @@ for c_ind in c_list:
         
     best_kernel = get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list)
         
+# %% Accumulated task variable encoding piechart 04/17
 
+def pie_accumulated(Data,best_kernel, c_ind):
+    d_list = good_list > 179
+
+    d_list3 = good_list <= 179
+    
+    # good_list_sep = np.int_(good_list[d_list])
+    b_list = np.arange(np.size(good_list))
+    b_list = b_list[d_list3]
+    pie_labels = [ "lick","stim","reward","history"]
+    cmap = ['tab:orange','tab:blue','tab:red','tab:olive'] 
+    cat_concat = [];
+    for n in b_list:
+        if best_kernel[c_ind][1,n] > 0:
+            try: 
+                cat_concat = np.concatenate((cat_concat,Data[int(good_list[n]),c_ind-1]["maxS"]))
+            except:
+                cat_concat = np.concatenate((cat_concat,[Data[int(good_list[n]),c_ind-1]["maxS"]]))
+                
+    plt.pie(np.bincount(cat_concat.astype(int)),labels = pie_labels, colors = cmap)
+    plt.show() 
+                
+pie_accumulated(Data,best_kernel, -1)
+        
 
 # %% Normalized population average of task variable weights
 # good_list = good_list_int
@@ -682,8 +706,8 @@ for c_ind in c_list:
         Model_coef = Data[nn, c_ind-1]["coef"]
         Model_score = Data[nn, c_ind-1]["score"]
     
-        # Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
-        Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        # Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
         
         norm_score = np.mean(Model_score, 1)
         norm_score[norm_score < weight_thresh] = 0
@@ -711,67 +735,101 @@ for c_ind in c_list:
     e_lines = e_lines+500
 
 
-# %% PCA
-
-d_list = good_list > 179
-
-d_list3 = good_list <= 179
+# %% PCA 
+# do PCA multiple times with 90% shuffling
 
 
-pca = {};
+n_cv = 100
+
+Overlap = {};
+Overlap[c_list[0]] = np.zeros((ax_sz,ax_sz,n_cv));
+Overlap[c_list[1]] = np.zeros((ax_sz,ax_sz,n_cv));
+Overlap_across = np.zeros((ax_sz,ax_sz,n_cv));
+O_mean = np.zeros((ax_sz,ax_sz));
+O_std = np.zeros((ax_sz,ax_sz));
 
 
-for c_ind in c_list:
-    fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
-    for f in np.arange(ax_sz):
-        # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-        pca[c_ind,f] = PCA(n_components=20) 
-        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
-        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
+for k in np.arange(n_cv):
+    d_list1 = good_list < 179
+    d_list3 = good_list > 179
+ 
+    for s in np.arange(np.size(good_list)):
+        if d_list1[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.9,0.1])
+            if shuffle == 1:
+                d_list1[s] = False
         
-        test = test.T
-        for t in range(5):
-            axs[f,t].plot(test[t,:],c = cmap3[f])
-        axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
-        plt.savefig("test.svg", format = 'svg')
+        if d_list3[s] == True:
+            shuffle = np.random.choice(2,1, p = [0.9,0.1])
+            if shuffle == 1:
+                d_list3[s] = False
+
+# d_list = good_list > 179
+
+# d_list3 = good_list <= 179
+
+
+    pca = {};
     
+    
+    for c_ind in c_list:
+        # fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
+        for f in np.arange(ax_sz):
+            # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
+            pca[c_ind,f] = PCA(n_components=20) 
+            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
+            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
+            
+            test = test.T
+            # for t in range(5):
+            #     axs[f,t].plot(test[t,:],c = cmap3[f])
+            # axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
+            # plt.savefig("test.svg", format = 'svg')
+    
+    for f in np.arange(ax_sz):
+        for f2 in np.arange(ax_sz):
+            for c_ind in c_list:
+                S_value = np.zeros((1,20))
+                
+                for d in np.arange(0,20):
+                    S_value[0,d] = np.abs(np.dot(pca[c_ind,f].components_[d,d_list3], pca[c_ind,f2].components_[d,d_list3].T))
+                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[c_ind,f].components_[d,d_list3])*np.linalg.norm(pca[c_ind,f2].components_[d,d_list3]))
+                        
+                Overlap[c_ind][f,f2,k] = np.max(S_value)
+            
+            for d in np.arange(0,20):
+                S_value[0,d] = np.abs(np.dot(pca[-2,f].components_[d,d_list3], pca[-1,f2].components_[d,d_list3].T))
+                S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[-2,f].components_[d,d_list3])*np.linalg.norm(pca[-1,f2].components_[d,d_list3]))
+            
+            Overlap_across[f,f2,k] = np.max(S_value)
+                
+                # Overlap[c_ind][f,f2,k] = np.max(np.abs(np.dot(pca[c_ind,f].components_, pca[c_ind,f2].components_.T)*np.identity(20)))
+                # Overlap_across[f,f2,k] = np.max(np.abs(np.dot(pca[c_list[0],f].components_, pca[c_list[1],f2].components_.T)*np.identity(20)))
+        
     
 
                    
 
     
 
-#  Subspace overlap analysis
-            
-n_cv = 100
-n_neuron = len(good_list[d_list])
+    #   Subspace overlap analysis
 
 
-Overlap = {};
-Overlap[c_list[0]] = np.zeros((ax_sz,ax_sz,n_cv));
-Overlap[c_list[1]] = np.zeros((ax_sz,ax_sz,n_cv));
-Overlap_across = np.zeros((ax_sz,ax_sz,n_cv));
 
-O_mean = np.zeros((ax_sz,ax_sz));
-O_std = np.zeros((ax_sz,ax_sz));
+
+
+
 
 for f in np.arange(ax_sz):
-    for f2 in np.arange(ax_sz):
-        for k in np.arange(n_cv):
-
-            for c_ind in c_list:
-                n_ind = np.random.choice(n_neuron,int(np.floor(n_neuron*0.9)), replace=False)
-                Overlap[c_ind][f,f2,k] = np.max(np.abs(np.dot(pca[c_ind,f].components_[:,n_ind], pca[c_ind,f2].components_[:,n_ind].T)*np.identity(20)))
-            Overlap_across[f,f2,k] = np.max(np.abs(np.dot(pca[c_list[0],f].components_[:,n_ind], pca[c_list[1],f2].components_[:,n_ind].T)*np.identity(20)))
-        
+    for f2 in np.arange(ax_sz):        
         O_mean[f,f2] = np.mean(Overlap_across[f,f2,:])
         O_std[f,f2] = np.std(Overlap_across[f,f2,:])
 
 
 
-x1 = [.8,1.8,2.8]
-y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
-e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
+# x1 = [.8,1.8,2.8]
+# y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
+# e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
 
 
 # %% dendrogram

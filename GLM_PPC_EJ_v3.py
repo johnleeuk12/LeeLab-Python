@@ -259,6 +259,8 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # Add reward  history
     Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
     Xpre = Xpre[:,None]
+    Xpre2 = np.concatenate(([0,0],X[0:-2,2]*X[0:-2,1]),0)
+    Xpre2 = Xpre2[:,None]
     # Add reward instead of action
     X2 = np.column_stack([X[:,0],X[:,3],
                           X[:,2]*X[:,1],Xpre]) 
@@ -377,9 +379,9 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
             cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
             clabels = ["contin","action","correct","stim","history"]
         elif c_ind == -2:
-            cmap = ['tab:orange','tab:purple','tab:blue','tab:red','tab:red']
-            clabels = ["lick","Contingency","stim","reward","history"]
-            lstyles = ['solid','solid','solid','solid','dashed']
+            cmap = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive','tab:olive']
+            clabels = ["lick","Contingency","stim","reward","history","history2"]
+            lstyles = ['solid','solid','solid','solid','solid','dashed']
             # cmap = ['tab:orange','tab:purple','tab:purple','tab:blue','tab:blue','tab:red','tab:red']
             # clabels = ["lick","go","no-go","stim1","stim2","reward","history"]
             # lstyles = ['solid','solid','dashed','solid','dashed','solid','dashed']
@@ -427,22 +429,22 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         # if c_ind ==0:
         #    # stim_ind = X3[:,3] == 1 
         # else:
-        # stim_ind1 = X3[:,2] == 1     
-        # stim_ind2 = X3[:,2] == 0  
+        # stim_ind1 = X3[:,3] == 1     
+        # stim_ind2 = X3[:,3] == 0  
         
     
         # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
-        #          linewidth = 2.0, color = cmap[2],label = '5 kHz',linestyle = lstyles[3])
+        #           linewidth = 2.0, color = cmap[3],label = 'Reward',linestyle = lstyles[3])
         # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
-        #          linewidth = 2.0, color = cmap[2],label = '10 kHz',linestyle = lstyles[4])
+        #           linewidth = 2.0, color = cmap[3],label = 'No Reward',linestyle = lstyles[4])
         # ax1.set_title('Firing rate y')
         # ax1.legend(loc = 'upper right')
     
         
         # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
-        #          linewidth = 2.0, color = cmap[2],linestyle = lstyles[3])
+        #           linewidth = 2.0, color = cmap[3],linestyle = lstyles[3])
         # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind2,:],0),2),
-        #          linewidth = 2.0, color = cmap[2],linestyle = lstyles[4]) 
+        #           linewidth = 2.0, color = cmap[3],linestyle = lstyles[4]) 
         # ax3.set_title('Prediction y_hat')
     
         ax2.set_title('unit_'+str(n+1))
@@ -503,8 +505,10 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
 
 # %% 
 
+Nvar = 5
+
 def build_model(n, t_period, prestim, window,k,c_ind,ca):
-    for m_ind in [0,1,2,3,4]:
+    for m_ind in np.arange(Nvar):
         X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind,0)
         Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
         mi, bs, coef,beta_weights,mean_score, var_score,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
@@ -515,11 +519,11 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
     max_score_pool = DataS[n,c_ind-1,maxS]["score_pool"]
     
     it = 0
-    while it < 5:
+    while it < Nvar:
         p = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         mean_score_pool = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         if np.any(DataS[n,c_ind-1,np.argmax(S)]["mean_score"] >  DataS[n,c_ind-1,np.argmax(S)]["var_score"]):
-            for m_ind in [0,1,2,3,4]:
+            for m_ind in np.arange(Nvar):
                 m_ind2 = np.unique(np.append(maxS,m_ind))
                 X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind2,0)
                 Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
@@ -540,7 +544,7 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
             max_score_pool = DataS[n,c_ind-1,np.argmax(np.max(T,1))]["score_pool"]
             it += 1
         else:
-            it = 5   
+            it = Nvar   
     
     return maxS
     
@@ -585,7 +589,7 @@ Data = {}
 
 # additional code for explained variance comparison
 DataS = {}
-S = np.zeros((1,5))
+S = np.zeros((1,Nvar))
 ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
 
@@ -603,7 +607,7 @@ for c_ind in c_list:
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
             # maxS = [0,1,2,3,4]   
             X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
+            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat,'maxS' : maxS}
             # t += 1
             # print(t,"/",len(good_list))
             good_list2 = np.concatenate((good_list2,[n]))
@@ -763,6 +767,39 @@ def pie_all_rules(best_kernel):
 
 pie_all_rules(best_kernel)
 
+
+
+# %% Accumulated task variable encoding piechart 04/17
+
+def pie_accumulated(Data,best_kernel):
+    d_list = good_list > 179
+
+    d_list3 = good_list <= 179
+    
+    good_list_sep = np.int_(good_list[d_list])
+    b_list = np.arange(np.size(good_list))
+    b_list = b_list[d_list]
+    pie_labels = [ "lick","Contingency","stim","reward","history"]
+    cmap = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive'] 
+    cat_concat = [];
+    for n in b_list:
+        if best_kernel[c_ind][1,n] > 0:
+            try: 
+                cat_concat = np.concatenate((cat_concat,Data[int(good_list[n]),c_ind-1]["maxS"]))
+            except:
+                cat_concat = np.concatenate((cat_concat,[Data[int(good_list[n]),c_ind-1]["maxS"]]))
+                
+    plt.pie(np.bincount(cat_concat.astype(int)),labels = pie_labels, colors = cmap)
+    plt.show() 
+                
+pie_accumulated(Data,best_kernel)
+        
+       
+
+
+    
+    
+
 # %% Normalized population average of task variable weights
 
 d_list = good_list > 179
@@ -778,10 +815,10 @@ weight_thresh = 2*1e-2
 
 
 if c_ind == 0 or c_ind == -2:
-    cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:red']
+    cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive']
     ax_sz = len(cmap3)
     clabels = ["lick","Contingency","stim","reward","history"]
-    lstyles = ['solid','solid','solid','solid','dashed']
+    lstyles = ['solid','solid','solid','solid','solid']
     
 
 
@@ -836,14 +873,14 @@ d_list3 = good_list <= 179
 pca = {};
 for f in np.arange(ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-    pca[f] = PCA(n_components=20) 
-    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
+    pca[f] = PCA(n_components=100) 
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
+    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
     
     test = test.T
     for t in range(5):
         axs[f,t].plot(test[t,:],c = cmap3[f])
-    axs[f,5].plot(np.cumsum(pca[f].explained_variance_ratio_))
+    axs[f,5].plot(np.cumsum(pca[f].explained_variance_ratio_[0:5]))
     plt.savefig("test.svg", format = 'svg')
 
     
@@ -971,7 +1008,7 @@ d_list1 = good_list < 179
 d_list2 = good_list > 179
 
 
-R = ndimage.gaussian_filter(Convdata[4][d_list2,:].T,[1,0])
+R = ndimage.gaussian_filter(Convdata[4][d_list1,:].T,[1,0])
 R0 = R[0:20,:]
 R = R[40:,:]
 
@@ -1036,7 +1073,6 @@ axes.set_ylim([0,0.7])
 #     for f in np.arange(ax_sz-1):
 #         axes.bar(f+ p*4, Vpmean[p,f],yerr = Vperr[p,f],color = cmap3[f])
 
-                                                                                             
 
 
 # %% dendrogram
@@ -1052,8 +1088,8 @@ array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-n_pc = 10
-n_pc1 = 0
+n_pc = 20
+n_pc1 = 4
 n_cv = 20;
 d_list1 = good_list > 179
 d_list2 = good_list < 179
@@ -1086,16 +1122,18 @@ for f  in np.arange(ax_sz):
     
         for s in np.arange(np.size(good_list)):
             if d_list1[s] == True:
-                shuffle = np.random.choice(2,1, p = [0.75,0.25])
+                shuffle = np.random.choice(2,1, p = [0.8,0.20])
                 if shuffle == 1:
                     d_list1[s] = False
             
             if d_list2[s] == True:
-                shuffle = np.random.choice(2,1, p = [0.75,0.25])
+                shuffle = np.random.choice(2,1, p = [0.8,0.20])
                 if shuffle == 1:
                     d_list2[s] = False
      
         # d_list1 = good_list >0
+        # d_list1 = good_list >0
+        # d_list2 = good_list >0
         # V_cap2_base[f,cv] = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],
         #                                                       pca[f].components_[:,d_list2].T),
         #                                                         pca[f].components_[:,d_list2]))/np.linalg.norm(R[:,d_list2])
@@ -1110,6 +1148,13 @@ for f  in np.arange(ax_sz):
     
         
     
+    
+    tot_var = np.zeros((1,array_length))
+    for t in np.arange(array_length):
+        tot_var[0,t] = np.var(R[t,d_list])
+        
+    plt.plot(xtime,tot_var.T)
+        
     
     axes[f].plot(xtime, np.mean(V_cap1[f,:,:],1),c = cmap3[f],linestyle = 'solid')
     axes[f].fill_between(xtime,np.mean(V_cap1[f,:,:],1)- np.std(V_cap1[f,:,:],1),np.mean(V_cap1[f,:,:],1)+ np.std(V_cap1[f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
@@ -1346,8 +1391,18 @@ for f in np.arange(ax_sz):
 # # plt.hist(best_kernel[1][0,:],bins)
 
 
+# sizeX = 0
+# p = 0
 
-
+# for n in good_list:
+#     n = int(n)
+#     X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
+#     if sizeX != np.size(X,0):        
+#         fig, ax = plt.subplots(1,1,figsize = (5,5))
+#         ax.plot(np.mean(L,0)*20)
+#         sizeX = np.size(X,0)
+#         p += 1
+        
 
 
 
