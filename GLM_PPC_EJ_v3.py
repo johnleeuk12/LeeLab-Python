@@ -776,9 +776,9 @@ def pie_accumulated(Data,best_kernel):
 
     d_list3 = good_list <= 179
     
-    good_list_sep = np.int_(good_list[d_list])
+    # good_list_sep = np.int_(good_list[d_list])
     b_list = np.arange(np.size(good_list))
-    b_list = b_list[d_list]
+    b_list = b_list[d_list3]
     pie_labels = [ "lick","Contingency","stim","reward","history"]
     cmap = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive'] 
     cat_concat = [];
@@ -791,7 +791,8 @@ def pie_accumulated(Data,best_kernel):
                 
     plt.pie(np.bincount(cat_concat.astype(int)),labels = pie_labels, colors = cmap)
     plt.show() 
-                
+    print(np.bincount(cat_concat.astype(int)))
+      
 pie_accumulated(Data,best_kernel)
         
        
@@ -874,8 +875,8 @@ pca = {};
 for f in np.arange(ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
     pca[f] = PCA(n_components=100) 
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
-    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list,:].T,[1,0]))
+    # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list3,:].T,[1,0]))
     
     test = test.T
     for t in range(5):
@@ -976,46 +977,47 @@ for f in np.arange(ax_sz):
             O_mean2[p][f,f2] = np.mean([O_mean[p][f,f2],O_mean[p][f2,f]])
             O_std2[p][f,f2] = np.mean([O_std[p][f,f2],O_std[p][f2,f]])
             
-        cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive']    
-for p in [0,1]:            
-    fig, axes = plt.subplots(ax_sz,1, figsize =(7, 20))
-    for f in np.arange(ax_sz):
-        axes[f].bar(np.arange(ax_sz), O_mean2[p][f,:], yerr = O_std2[p][f,:], color = cmap3)
+#         cmap3 = ['tab:orange','tab:purple','tab:blue','tab:red','tab:olive']    
+# for p in [0,1]:            
+#     fig, axes = plt.subplots(ax_sz,1, figsize =(7, 20))
+#     for f in np.arange(ax_sz):
+#         axes[f].bar(np.arange(ax_sz), O_mean2[p][f,:], yerr = O_std2[p][f,:], color = cmap3)
         
 
-fig, axes = plt.subplots(1,1,figsize = (10,8))
-for p in [0,1]:
-    axes.bar( [p, 2+p,4+p], O_mean2[p][0,[0,1,3]], yerr = O_std2[p][0,[0,1,3]], color = ['tab:orange','tab:purple','tab:red'])
-    axes.set_ylim([0,1])
+# fig, axes = plt.subplots(1,1,figsize = (10,8))
+# for p in [0,1]:
+#     axes.bar( [p, 2+p,4+p], O_mean2[p][0,[0,1,3]], yerr = O_std2[p][0,[0,1,3]], color = ['tab:orange','tab:purple','tab:red'])
+#     axes.set_ylim([0,1])
 
 
-# x1 = [.8,1.8,2.8]
-# y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
-# e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
+# # x1 = [.8,1.8,2.8]
+# # y1 = [O_mean[0,0],O_mean[1,1],O_mean[2,2]]
+# # e1 = [O_std[0,0],O_std[1,1],O_std[2,2]]
 
-test1 = Overlap[0][1,3,:]
-test2 = Overlap[1][1,3,:]
-stats.ks_2samp(test1,test2)
-
-
+# test1 = Overlap[0][1,3,:]
+# test2 = Overlap[1][1,3,:]
+# stats.ks_2samp(test1,test2)
 
 
 
-# %% Calculate var explained percentage by PC 6-20 for R
 
+
+# %% Calculate var explained percentage by PC 4-20 for R
+
+# run R and PCA with separate subpopulations
 
 d_list1 = good_list < 179
 d_list2 = good_list > 179
 
 
-R = ndimage.gaussian_filter(Convdata[4][d_list1,:].T,[1,0])
+R = ndimage.gaussian_filter(Convdata[4][d_list2,:].T,[1,0])
 R0 = R[0:20,:]
 R = R[40:,:]
 
-npc = [0,3,20]
+npc = [0,3,20] # pc 1 to 3, 4 to 20 
 
-V = 1-np.linalg.norm(R0[:,:] - np.dot(np.dot(R0[:,:],pca[4].components_[npc[0]:npc[1],:].T),
-                                                        pca[4].components_[npc[0]:npc[1],:]))/np.linalg.norm(R0[:,:])
+V = 1-np.linalg.norm(R0[:,:] - np.dot(np.dot(R0[:,:],pca[0].components_[npc[1]:npc[2],:].T),
+                                                        pca[0].components_[npc[1]:npc[2],:]))/np.linalg.norm(R0[:,:])
 
 
 # V_ac = 1-np.linalg.norm(R[:,d_list2] - np.dot(np.dot(R[:,d_list2],pca[4].components_[npc[0]:npc[1],d_list2].T),
@@ -1049,24 +1051,24 @@ for cv in np.arange(20):
     for f in np.arange(ax_sz):
         # V1 = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[f].components_[npc[0]:npc[1],d_list1].T),
         #                                                     pca[f].components_[npc[0]:npc[1],d_list1]))/np.linalg.norm(R2)
-        V2 = 1-np.linalg.norm(R - np.dot(np.dot(R,pca[f].components_[npc[0]:npc[1],:].T),
-                                                            pca[f].components_[npc[0]:npc[1],:]))/np.linalg.norm(R)
+        V2 = 1-np.linalg.norm(R0 - np.dot(np.dot(R0,pca[f].components_[npc[0]:npc[2],:].T),
+                                                            pca[f].components_[npc[0]:npc[2],:]))/np.linalg.norm(R0)
         
         # Vp[0,f,cv] = V1/V_ic
-        Vp[1,f,cv] = V2/V
+        Vp[1,f,cv] = V2 #/V
 
 
-
+    
 Vpmean = np.mean(Vp,axis = 2)
 Vperr = np.std(Vp,axis = 2)
 
 fig, axes = plt.subplots(1,1, figsize = (10,8))
 
-for f in np.arange(ax_sz-1):
+for f in np.arange(ax_sz):
     axes.bar(f, Vpmean[1,f],yerr = Vperr[1,f],color = cmap3[f])
 
 
-axes.set_ylim([0,0.7])   
+# axes.set_ylim([0,0.7])   
 
 # fig, axes = plt.subplots(1,1, figsize =(10, 8))
 # for p in [0,1]:
@@ -1088,8 +1090,8 @@ array_length = np.size(Convdata[0],1)
 
 xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
 
-n_pc = 20
-n_pc1 = 4
+n_pc = 3
+n_pc1 = 0
 n_cv = 20;
 d_list1 = good_list > 179
 d_list2 = good_list < 179
@@ -1235,7 +1237,9 @@ def draw_traj(traj,f,v):
         lc.set_array(time)
         lc.set_linewidth(2)
         ax.add_collection3d(lc)
-        
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        ax.set_zlabel('PC3')
         if tr ==0:
             ax.auto_scale_xyz(x,y,z)
         # fig.colorbar(line, ax=axs[0])
@@ -1299,7 +1303,7 @@ imageio.mimsave(file_path_name, images)
 
 fig, axes = plt.subplots(ax_sz,2,figsize = (5,10))
 traj = {}
-xtime = np.arange(140)*5*1e-3-1e3
+xtime = np.arange(160)*5*1e-3-1e3
 for f in np.arange(ax_sz):
     R = ndimage.gaussian_filter(Convdata[f].T,[1,0])
     
@@ -1404,12 +1408,19 @@ for f in np.arange(ax_sz):
 #         p += 1
         
 
+hist = np.zeros((1,294))
+for n in np.arange(294):
+    gn = good_list[n]
+    if best_kernel[-2][1,n] > 0:
+        hist[0,n] = np.size(Data[int(gn),c_ind-1]["maxS"])
 
 
+h, bins = np.histogram(hist)
+plt.hist(bins[:-1], bins, weights=h)
 
-
-
-
-
+np.bincount(hist)
+plt.hist(hist,np.arange(6))
 
     
+
+

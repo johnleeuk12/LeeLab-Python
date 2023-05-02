@@ -750,14 +750,14 @@ O_std = np.zeros((ax_sz,ax_sz));
 
 
 for k in np.arange(n_cv):
-    d_list1 = good_list < 179
-    d_list3 = good_list > 179
+    d_list3 = good_list <= 179
+    d_list = good_list > 179
  
     for s in np.arange(np.size(good_list)):
-        if d_list1[s] == True:
+        if d_list[s] == True:
             shuffle = np.random.choice(2,1, p = [0.9,0.1])
             if shuffle == 1:
-                d_list1[s] = False
+                d_list[s] = False
         
         if d_list3[s] == True:
             shuffle = np.random.choice(2,1, p = [0.9,0.1])
@@ -773,17 +773,17 @@ for k in np.arange(n_cv):
     
     
     for c_ind in c_list:
-        # fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
+        fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
         for f in np.arange(ax_sz):
             # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
             pca[c_ind,f] = PCA(n_components=20) 
             # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
-            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
+            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
             
             test = test.T
-            # for t in range(5):
-            #     axs[f,t].plot(test[t,:],c = cmap3[f])
-            # axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
+            for t in range(5):
+                axs[f,t].plot(test[t,:],c = cmap3[f])
+            axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
             # plt.savefig("test.svg", format = 'svg')
     
     for f in np.arange(ax_sz):
@@ -792,14 +792,14 @@ for k in np.arange(n_cv):
                 S_value = np.zeros((1,20))
                 
                 for d in np.arange(0,20):
-                    S_value[0,d] = np.abs(np.dot(pca[c_ind,f].components_[d,d_list3], pca[c_ind,f2].components_[d,d_list3].T))
-                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[c_ind,f].components_[d,d_list3])*np.linalg.norm(pca[c_ind,f2].components_[d,d_list3]))
+                    S_value[0,d] = np.abs(np.dot(pca[c_ind,f].components_[d,:], pca[c_ind,f2].components_[d,:].T))
+                    S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[c_ind,f].components_[d,:])*np.linalg.norm(pca[c_ind,f2].components_[d,:]))
                         
                 Overlap[c_ind][f,f2,k] = np.max(S_value)
             
             for d in np.arange(0,20):
-                S_value[0,d] = np.abs(np.dot(pca[-2,f].components_[d,d_list3], pca[-1,f2].components_[d,d_list3].T))
-                S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[-2,f].components_[d,d_list3])*np.linalg.norm(pca[-1,f2].components_[d,d_list3]))
+                S_value[0,d] = np.abs(np.dot(pca[-1,f].components_[d,:], pca[-2,f2].components_[d,:].T))
+                S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[-1,f].components_[d,:])*np.linalg.norm(pca[-2,f2].components_[d,:]))
             
             Overlap_across[f,f2,k] = np.max(S_value)
                 
@@ -897,3 +897,21 @@ dn1 = dendrogram(Z,labels = ['R1_Lick','R1_Stim','R1_Rew','R1_Hist','R2_Lick','R
 #                                   pca[c_list[0],f2].components_))/np.linalg.norm(Convdata[c_list[1],f].T)
             
 #         Overlap_across[f,f2] = V_cap2/V_cap1
+
+
+sizeX = 0
+p = 0
+
+for n in good_list:
+    n = int(n)
+    X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,-2)
+    if sizeX != np.size(X,0):        
+        fig, ax = plt.subplots(1,2,figsize = (10,5))
+        
+        X1, Y1, L1, Rt1 = import_data_w_Ca(D_ppc,n,prestim,t_period,window,-1)
+
+        
+        ax[0].plot(np.mean(L1,0)*20)
+        ax[1].plot(np.mean(L,0)*20)
+        sizeX = np.size(X,0)
+        p += 1
