@@ -356,12 +356,14 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
     
-def draw_traj(traj,f,v):
+def draw_traj(traj,f,v,trmax,sc):
     fig = plt.figure(figsize = (10,10))
     ax = plt.axes(projection='3d')
-    styles = ['solid', 'dotted', 'solid','dotted']
-    cmap_names = ['autumn','autumn','winter','winter']
-    for tr in [0,1,2,3]:
+    # styles = ['solid', 'dotted', 'solid','dotted']
+    # cmap_names = ['autumn','autumn','winter','winter']
+    styles = ['solid','solid','dotted']
+    cmap_names = ['autumn','winter','winter']
+    for tr in np.arange(trmax):
         x = traj[f][tr][:,0]
         y = traj[f][tr][:,1]
         z = traj[f][tr][:,2]
@@ -390,21 +392,164 @@ def draw_traj(traj,f,v):
         ax.set_xlabel('PC1')
         ax.set_ylabel('PC2')
         ax.set_zlabel('PC3')
-        ax.auto_scale_xyz(x,y,z)
+        if tr == sc:
+            ax.auto_scale_xyz(x,y,z)
+    if v ==1:
+        for n in range(0, 100):
+            if n >= 20 and n<50:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+4.0 #pan down faster 
+            if n >= 50 and n<80:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+2.0 #pan down faster 
+                ax.azim = ax.azim+4.0
+            # if n >= 20 and n <= 22: 
+            #     ax.set_xlabel('')
+            #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
+            #     ax.elev = ax.elev-2 #start by panning down slowly 
+            # if n >= 23 and n <= 36: 
+            #     ax.elev = ax.elev-1.0 #pan down faster 
+            # if n >= 37 and n <= 60: 
+            #     ax.elev = ax.elev-1.5 
+            #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
+            # if n >= 61 and n <= 64: 
+            #     ax.elev = ax.elev-1.0 
+            #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
+            # if n >= 65 and n <= 73: 
+            #     ax.elev = ax.elev-0.5 
+            #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
+            # if n >= 74 and n <= 76:
+            #     ax.elev = ax.elev-0.2
+            #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
+            if n >= 80: #add axis labels at the end, when the plot isn't moving around
+                ax.set_xlabel('PC1')
+                ax.set_ylabel('PC2')
+                ax.set_zlabel('PC3')
+            # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
+            plt.savefig('Images/img' + str(n).zfill(3) + '.png',
+                        bbox_inches='tight')
 
 
 # %% 
 draw_traj(traj,0,0)
-    
-    
+
+
 
     
     
+# %% load data from different consoles. 
+
+# np.save('PCA_PAC.npy', pca)
+
+Convdata = np.load('D:\Python\ConvR1vsR2_cont.npy',allow_pickle= True).item()
+Convdata[-1,4] = Convdata[-1,3]
+Convdata[-1,3] = Convdata[-1,2]
+Convdata[-1,2] = Convdata[-1,1]
+Convdata[-2,4] = Convdata[-2,3]
+Convdata[-2,3] = Convdata[-2,2]
+Convdata[-2,2] = Convdata[-2,1]
+
+# Convdata index:
+    # 0 : lick
+    # 1 : Contingency
+    # 2 : stim ( same with )
+    # 3 : Reward
+    # 4 : history 
     
+
+pca = {}
+
+# pca = np.load('D:\Python\PCA_PIC.npy',allow_pickle= True).item()   
+# pca = np.load('D:\Python\PCA_PAC.npy',allow_pickle= True).item()
+pca = np.load('D:\Python\pca_common_all.npy',allow_pickle= True).item()
+
+
+
+
+tvlist = np.load('tvlist_PAC.npy',allow_pickle= True).item()
+
+
+
+# %%  Run PCA on model weights, R1 and R2 separately 
+
+c_list = [-1, -2]
+cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
+
+pca = {}
+ax_sz = 4;
+for c_ind in c_list:
+    fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
+    for f in [1,2,3]:
+         # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
+        pca[c_ind,f] = PCA(n_components=20) 
+            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
+        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist[f][0],:].T,[1,0]))
+        test = test.T
+        for t in range(5):
+            axs[f,t].plot(test[t,:],c = cmap3[f])
+        axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
+
+
+# %%    
+ax_sz = 5
+traj = {};
+for f in [1,2,3]:
+    if f >= 2:
+        R1 = ndimage.gaussian_filter(Convdata[-1,f-1][tvlist[f][0],:].T,[3,0])
+        R2 = ndimage.gaussian_filter(Convdata[-2,f-1][tvlist[f][0],:].T,[3,0])
+    else:
+        R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
+        R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])   
+        
+        
+    # R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
+    # R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])        
+    traj[f] = {}
     
+    traj[f][0] = np.dot(R1,pca[f].components_.T)  
+    traj[f][1] = np.dot(R2,pca[f].components_.T)  
     
+
+for f in [1,2,3]:
+    draw_traj(traj,f,0,2,0)
     
+# %% saving trajectories
+import IPython.display as IPdisplay
+import glob
+from PIL import Image as PIL_Image
+import imageio
+
+plt.close()
+# for f in np.arange(ax_sz):    
+
+f = 4
+sc = 0    
+draw_traj(traj,f,1,2,sc)
     
-    
-    
-    
+names = ["Lick", "Contingency","Stim","Reward","History"]
+images = [PIL_Image.open(image) for image in glob.glob('images/*.png')]
+file_path_name = 'images/GLM_kernel/R1vsR2_trajectory_' + names[f] + '.gif'
+imageio.mimsave(file_path_name, images)   
+
+
+# %% first question: do common neurons have different dynamics? 
+
+tvlist = np.load('tvlist_PAC.npy',allow_pickle= True).item()
+
+
+
+# %% Second question: temporal dynamics differences? ?? 
+
+
+
+
+
+
+
+
+
+
+ 
+        

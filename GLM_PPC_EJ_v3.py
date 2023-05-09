@@ -864,6 +864,16 @@ e_lines = np.array([0, 500, 500+1000, 2500+1000])
 e_lines = e_lines+500
 
 # %% PCA
+ax_sz = 5
+tvlist = np.load('tvlist_PAC.npy',allow_pickle= True).item()
+
+tvlist2= {}
+tvlist2[4] = tvlist[3]
+tvlist2[3] = tvlist[2]
+tvlist2[2] = tvlist[1]
+tvlist2[1] = tvlist[1]
+tvlist2[0] = tvlist[0]
+
 fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
 
 d_list = good_list > 179
@@ -872,11 +882,11 @@ d_list3 = good_list <= 179
 
 
 pca = {};
-for f in np.arange(ax_sz):
+for f in np.arange(1,ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-    pca[f] = PCA(n_components=100) 
+    pca[f] = PCA(n_components=20) 
     # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
-    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][d_list3,:].T,[1,0]))
+    test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][tvlist2[f][0],:].T,[1,0]))
     
     test = test.T
     for t in range(5):
@@ -889,6 +899,8 @@ for f in np.arange(ax_sz):
 #  Subspace overlap analysis
             
 n_cv = 100
+
+np.save('pca_common_all.npy',pca)
 
 # p_list = {};
 # # p_list[0] = good_list[d_list].astype(int)
