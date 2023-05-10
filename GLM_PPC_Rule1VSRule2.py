@@ -783,7 +783,7 @@ d_list = good_list > 179
 
 d_list3 = good_list <= 179
 
-good_list_sep = good_list[:]
+good_list_sep = good_list[d_list3]
 
 weight_thresh = 1*1e-2
 
@@ -814,8 +814,8 @@ for c_ind in c_list:
         # if c_ind == -2: # for rule 2, switch signs for stim, this makes it into contingency
         #     Model_coef[1,:] = -Model_coef[1,:]
     
-        # Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
-        Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        # Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
         
         norm_score = np.mean(Model_score, 1)
         norm_score[norm_score < weight_thresh] = 0
@@ -836,7 +836,7 @@ for c_ind in c_list:
             y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
             axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
             axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-            axes.set_ylim([-0.10,0.10])
+            axes.set_ylim([-0.0,0.20])
     
     
     e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -970,11 +970,12 @@ def temporal_var_exp(Convdata,pca,d_list,tlist):
     
     n_pc = 3
     n_pc1 = 0
-    n_cv = 100
+    n_cv = 20
     V_cap = {}
+    V_cap1 = {}
     for c_ind in c_list:
         V_cap[c_ind]  =np.zeros((ax_sz,array_length,n_cv))
-    
+        V_cap1[c_ind]  =np.zeros((ax_sz,array_length,n_cv))
     V_cap1_base = np.zeros((ax_sz,n_cv))
     # V_cap2_base = np.zeros((ax_sz,n_cv))
     
@@ -984,70 +985,89 @@ def temporal_var_exp(Convdata,pca,d_list,tlist):
         
         for cv in np.arange(n_cv):
             for c_ind in c_list:
-                if not tlist:
-                    R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0])
-                else:
-                    R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][tlist[f][0],:].T,[1,0])
+                # if not tlist:
+                R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0])
+                # else:
+                    # R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][tlist[f][0],:].T,[1,0])
 
-                R0 = ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0])
+                # R0 = ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0])
             # create baseline explained variance with shuffled data
-            r_shuffle = np.arange(len(good_list))
-            np.random.shuffle(r_shuffle)
-            R2 = R0[:,r_shuffle]
-            if not tlist:
-                R2 = R2[:,d_list]
-            else:
-                R2 = R2[:,tlist[f][0]]    
-            V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[c_ind,f].components_[n_pc1:n_pc,:].T),
-                                                                    pca[c_ind,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R2)
+            # r_shuffle = np.arange(len(good_list))
+            # np.random.shuffle(r_shuffle)
+            # R2 = R0[:,r_shuffle]
+            # if not tlist:
+            #     R2 = R2[:,d_list]
+            # else:
+            #     R2 = R2[:,tlist[f][0]]    
+            # V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[c_ind,f].components_[n_pc1:n_pc,:].T),
+            #                                                         pca[c_ind,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R2)
             
             # Shuffle d_list by removing 10% 
-            if not tlist:
-                s_list = np.random.choice(np.arange(np.sum(d_list)),int(np.floor(np.sum(d_list)*0.90)),replace=False)
-            # s_list = np.arange(np.sum(d_list))
-            else:
-                s_list = np.random.choice(np.arange(np.size(tlist[f][0])),int(np.size(tlist[f][0])*0.9),replace = False)
-            
+            # if not tlist:
+            #     s_list = np.random.choice(np.arange(np.sum(d_list)),int(np.floor(np.sum(d_list)*0.90)),replace=False)
+            # # s_list = np.arange(np.sum(d_list))
+            # else:
+            #     s_list = np.random.choice(np.arange(np.size(tlist[f][0])),int(np.size(tlist[f][0])*0.9),replace = False)
+            ss_list = {}
+            s_list =  [item-95 for item in tlist[f][0]]
+            ss_list[1] = [item-95 for item in tlist[f][1]]
+            ss_list[2] = [item-95 for item in tlist[f][2]]
+
             for c_ind in c_list:
                 
-                R[c_ind] = R[c_ind][:,s_list]                
+                # R[c_ind] = R[c_ind][:,s_list]                
                 for t in np.arange(array_length):                        
-                    V_cap[c_ind][f,t,cv] = 1-np.linalg.norm(R[c_ind][t,:] - np.dot(np.dot(R[c_ind][t,:],
+                    V_cap[c_ind][f,t,cv] = 1-np.linalg.norm(R[c_ind][t,tlist[f][0]] - np.dot(np.dot(R[c_ind][t,tlist[f][0]],
                                                                           pca[c_ind,f].components_[n_pc1:n_pc,s_list].T),
-                                                                            pca[c_ind,f].components_[n_pc1:n_pc,s_list]))/np.linalg.norm(R[c_ind][t,:])
-        
+                                                                            pca[c_ind,f].components_[n_pc1:n_pc,s_list]))/np.linalg.norm(R[c_ind][t,tlist[f][0]])
                     
-    fig, axes = plt.subplots(ax_sz,1,figsize = (5,10))
-    for f  in np.arange(1,ax_sz): 
-        for c_ind in c_list:
-            axes[f].plot(xtime, np.mean(V_cap[c_ind][f,:,:],1),c = cmap3[f],linestyle = l_styles[np.abs(c_ind)-1])
+                    
+                    V_cap1[c_ind][f,t,cv] = 1 - np.linalg.norm(R[c_ind][t,d_list] - np.dot(np.dot(R[c_ind][t,d_list],
+                                                                          pca[c_ind,f].components_[n_pc1:n_pc,:].T),
+                                                                            pca[c_ind,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R[c_ind][t,d_list])
+                    
+                    # V_cap1[c_ind][f,t,cv] = 1-np.linalg.norm(R[c_ind][t,tlist[f][-c_ind]] - np.dot(np.dot(R[c_ind][t,tlist[f][-c_ind]],
+                    #                                                       pca[c_ind,f].components_[n_pc1:n_pc,ss_list[-c_ind]].T),
+                    #                                                         pca[c_ind,f].components_[n_pc1:n_pc,ss_list[-c_ind]]))/np.linalg.norm(R[c_ind][t,tlist[f][-c_ind]])
+                           
+        
+        
+    for c_ind in c_list:                
+        fig, axes = plt.subplots(ax_sz,1,figsize = (5,10))
+        for f  in np.arange(1,ax_sz): 
+        # for c_ind in c_list:
+            axes[f].plot(xtime, np.mean(V_cap[c_ind][f,:,:],1),c = cmap3[f],linestyle = 'solid')#l_styles[np.abs(c_ind)-1])
             axes[f].fill_between(xtime,np.mean(V_cap[c_ind][f,:,:],1)- np.std(V_cap[c_ind][f,:,:],1),np.mean(V_cap[c_ind][f,:,:],1)+ np.std(V_cap[c_ind][f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
             
-        y =np.mean(V_cap1_base[f,:])
-            # error = np.std(V_cap1_base[f,:])
-        axes[f].hlines(y, 
-                  xmin = min(xtime), 
-                  xmax = max(xtime),
-                  linestyles = 'dashed',
-                  colors = 'black', 
-                  linewidth = 2.0)
+            axes[f].plot(xtime, np.mean(V_cap1[c_ind][f,:,:],1),c = cmap3[f],linestyle = 'dotted')#l_styles[np.abs(c_ind)-1])
+            axes[f].fill_between(xtime,np.mean(V_cap1[c_ind][f,:,:],1)- np.std(V_cap1[c_ind][f,:,:],1),np.mean(V_cap1[c_ind][f,:,:],1)+ np.std(V_cap1[c_ind][f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
+            
+            y =np.mean(V_cap1_base[f,:])
+                # error = np.std(V_cap1_base[f,:])
+            axes[f].hlines(y, 
+                      xmin = min(xtime), 
+                      xmax = max(xtime),
+                      linestyles = 'dashed',
+                      colors = 'black', 
+                      linewidth = 2.0)
+            # axes[f].set_ylim =
 
                            
             
 pca = {};
     
-max_k = 20    
+max_k = 30    
 for c_ind in c_list:
     # fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
     for f in np.arange(1,ax_sz):
         # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
         pca[c_ind,f] = PCA(n_components=max_k) 
-        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist2[f][0],:].T,[1,0]))
-        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
+        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist2[f][0],:].T,[1,0]))
+        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
 
 
         
-temporal_var_exp(Convdata,pca,d_list,tvlist2)      
+temporal_var_exp(Convdata,pca,d_list3,tvlist1)      
 
 # array_length = np.size(Convdata[-1,0],1)
 # V = np.zeros((1,array_length))
@@ -1058,6 +1078,33 @@ temporal_var_exp(Convdata,pca,d_list,tvlist2)
 # fig, ax = plt.subplots(1,1,figsize =  (10,8))
     
 # ax.plot(np.arange(array_length),V[0,:])
+
+# %% Simply plot data
+
+
+tlist = tvlist1
+lim = {}
+lim[1]=[0, 0.4]
+lim[2]=[0,0.7]
+lim[3]=[0,0.25]
+
+fig, axes = plt.subplots(4,2,figsize = (20,20))
+for c_ind in c_list:    
+    for f in np.arange(1,ax_sz):
+        error = np.std(Convdata[c_ind,f][tlist[f][0],:],0)/np.sqrt(np.size(tlist[f][0]))
+        y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f][tlist[f][0],:],0),1)
+        
+        error2 = np.std(Convdata[c_ind,f][tlist[f][-c_ind],:],0)/np.sqrt(np.size(tlist[f][-c_ind]))
+        y2 = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f][tlist[f][-c_ind],:],0),1)
+        
+        axes[f,-c_ind -1].plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f],linestyle = 'solid')
+        axes[f,-c_ind -1].fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
+        
+        axes[f,-c_ind -1].plot(x_axis*1e-3-prestim*1e-3,y2,c = cmap3[f],linestyle = 'dotted')
+        axes[f,-c_ind -1].fill_between(x_axis*1e-3-prestim*1e-3,y2-error2,y2+error2,facecolor = cmap3[f],alpha = 0.3)
+        
+        axes[f,-c_ind -1].set_ylim(lim[f])
+    
 
 
 
@@ -1163,20 +1210,22 @@ for c_ind in c_list:
          # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
         pca[c_ind,f] = PCA(n_components=max_k) 
             # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
-        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist1[f][0],:].T,[1,0]))
+        R = Convdata[-1,f][tvlist1[f][0],:] + Convdata[-2,f][tvlist1[f][0],:] 
+        R = R/2
+        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist1[f][0],:].T,[1,0]))
+        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(R.T,[1,0]))        
         test = test.T
         for t in range(5):
             axs[f,t].plot(test[t,:],c = cmap3[f])
         axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
    
-ax_sz = 4
 traj = {};
 for f in  np.arange(1,ax_sz):             
     R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist1[f][0],:].T,[3,0])
     R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist1[f][0],:].T,[3,0])        
     traj[f] = {}
-    traj[f][0] = np.dot(R1,pca[-2,f].components_.T)  
-    traj[f][1] = np.dot(R2,pca[-2,f].components_.T)  
+    traj[f][0] = np.dot(R1,pca[-1,f].components_.T)  
+    traj[f][1] = np.dot(R2,pca[-1,f].components_.T)  
 
 for f in  np.arange(1,ax_sz):
     draw_traj(traj,f,0,2,0)
