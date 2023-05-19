@@ -293,7 +293,7 @@ else:
     good_list = find_good_data_Ca(t_period)
     
     
-    
+# %%    
 lenx = 160 # Length of data, 8000ms, with a 50 ms window.
 D_all = np.zeros((len(good_list),lenx))
 D = {}
@@ -308,10 +308,40 @@ for n in good_list:
     D_all[m,:] = np.mean(Y,0)/(np.max(np.mean(Y,0)) + 0.5) # Soft normalisation, alpha = 0.5
     for c_ind in [5,6]:
         X,Y,L,Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind)
-        D[0,c_ind][m,:] = np.mean(Y[X[:,0] == 0,:],0)/(np.max(np.mean(Y[X[:,0] == 0,:],0)) + 0.5)
-        D[1,c_ind][m,:] = np.mean(Y[X[:,0] == 1,:],0)/(np.max(np.mean(Y[X[:,0] == 0,:],0)) + 0.5)
+        D[0,c_ind][m,:] = np.mean(Y[X[:,0] == 0,:],0)/(np.max(np.mean(Y,0)) + 0.5)
+        D[1,c_ind][m,:] = np.mean(Y[X[:,0] == 1,:],0)/(np.max(np.mean(Y,0)) + 0.5)
     m += 1
-    
+
+np.save("Ca_trace",D)
+
+# %% 
+xtime = np.arange(160)*50*1e-3-1000*1e-3
+d_list1 = good_list < 179
+d_list2 = good_list > 179
+d_list = d_list1
+
+fig, axs = plt.subplots(1,1,figsize = (10,10))
+
+cmap = {}
+lstyle = {}
+lstyle[5] = "solid"
+lstyle[6] = "dashed"
+cmap = ["tab:red", "tab:blue"]
+
+
+for r_ind in [5,6]:
+    for c_ind in [0,1]:
+        axs.plot(xtime,np.mean(D[c_ind,r_ind][d_list,:],0),c = cmap[c_ind],linestyle = lstyle[r_ind],linewidth = 3 )
+        axs.fill_between(xtime,
+                         np.mean(D[c_ind,r_ind][d_list,:],0)- 
+                         np.std(D[c_ind,r_ind][d_list,:],0)/np.sqrt(np.sum(d_list)),
+                         np.mean(D[c_ind,r_ind][d_list,:],0)+ 
+                         np.std(D[c_ind,r_ind][d_list,:],0)/np.sqrt(np.sum(d_list)), 
+                         facecolor = cmap[c_ind], alpha = 0.2)
+        axs.set_ylim([0.40,0.75])
+
+
+
 
 
 # %% Run PCA, can separate PPC_AC (d_list2) and PPC_IC (d_list1)
@@ -322,7 +352,7 @@ d_list2 = good_list > 179
 pca = {};
 pca[f] = PCA(n_components=80) 
 # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
-test = pca[f].fit_transform(ndimage.gaussian_filter(D_all[d_list2,:].T,[1,0]))
+test = pca[f].fit_transform(ndimage.gaussian_filter(D_all[d_list1,:].T,[1,0]))
 
 
     
@@ -339,12 +369,18 @@ R = ndimage.gaussian_filter(D_all.T,[1,0])
 traj = {}
 traj[f] = {}
 # traj[f][0] = pca[f].fit_transform(R)
-traj[f][0] = np.dot(ndimage.gaussian_filter(D[0,5][d_list2,:].T,[1,0]),pca[f].components_.T)  
-traj[f][1] = np.dot(ndimage.gaussian_filter(D[1,5][d_list2,:].T,[1,0]),pca[f].components_.T)  
-traj[f][2] = np.dot(ndimage.gaussian_filter(D[0,6][d_list2,:].T,[1,0]),pca[f].components_.T)  
-traj[f][3] = np.dot(ndimage.gaussian_filter(D[1,6][d_list2,:].T,[1,0]),pca[f].components_.T)  
-        
-    
+traj[f][0] = np.dot(ndimage.gaussian_filter(D[0,5][d_list1,:].T,[5,0]),pca[f].components_.T)  
+traj[f][1] = np.dot(ndimage.gaussian_filter(D[1,5][d_list1,:].T,[5,0]),pca[f].components_.T)  
+traj[f][2] = np.dot(ndimage.gaussian_filter(D[0,6][d_list1,:].T,[5,0]),pca[f].components_.T)  
+traj[f][3] = np.dot(ndimage.gaussian_filter(D[1,6][d_list1,:].T,[5,0]),pca[f].components_.T)  
+
+tt = 2
+fig, axs = plt.subplots(1,1,figsize = (10,10))    
+
+lstyles = ["solid","solid","dashed","dashed"]
+cmap = ["tab:red", "tab:blue","tab:red", "tab:blue"]    
+for i in np.arange(4):
+        axs.plot(xtime, traj[f][i][:,tt].T, c = cmap[i], linestyle = lstyles[i])
     
 
 # %% draw trajectories
@@ -359,10 +395,10 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 def draw_traj(traj,f,v,trmax,sc):
     fig = plt.figure(figsize = (10,10))
     ax = plt.axes(projection='3d')
-    # styles = ['solid', 'dotted', 'solid','dotted']
-    # cmap_names = ['autumn','autumn','winter','winter']
-    styles = ['solid','solid','dotted']
-    cmap_names = ['autumn','winter','winter']
+    styles = ['solid', 'dotted', 'solid','dotted']
+    cmap_names = ['autumn','autumn','winter','winter']
+    # styles = ['solid','solid','dotted']
+    # cmap_names = ['autumn','winter','winter']
     for tr in np.arange(trmax):
         x = traj[f][tr][:,0]
         y = traj[f][tr][:,1]
@@ -433,7 +469,7 @@ def draw_traj(traj,f,v,trmax,sc):
 
 
 # %% 
-draw_traj(traj,0,0)
+draw_traj(traj,0,0,4,1)
 
 
 
@@ -443,7 +479,7 @@ draw_traj(traj,0,0)
 
 # np.save('PCA_PAC.npy', pca)
 
-Convdata = np.load('D:\Python\ConvR1vsR2_cont.npy',allow_pickle= True).item()
+Convdata = np.load('D:\Python\ConvR1vsR2.npy',allow_pickle= True).item()
 Convdata[-1,4] = Convdata[-1,3]
 Convdata[-1,3] = Convdata[-1,2]
 Convdata[-1,2] = Convdata[-1,1]
@@ -493,24 +529,26 @@ for c_ind in c_list:
 
 
 # %%    
-ax_sz = 5
+ax_sz = 4
 traj = {};
 for f in [1,2,3]:
-    if f >= 2:
-        R1 = ndimage.gaussian_filter(Convdata[-1,f-1][tvlist[f][0],:].T,[3,0])
-        R2 = ndimage.gaussian_filter(Convdata[-2,f-1][tvlist[f][0],:].T,[3,0])
-    else:
-        R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
-        R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])   
+    # if f >= 2:
+    #     R1 = ndimage.gaussian_filter(Convdata[-1,f-1][tvlist[f][0],:].T,[3,0])
+    #     R2 = ndimage.gaussian_filter(Convdata[-2,f-1][tvlist[f][0],:].T,[3,0])
+    # else:
+    #     R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
+    #     R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])   
         
         
-    # R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
-    # R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])        
+    R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[3,0])
+    R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[3,0])        
     traj[f] = {}
-    
-    traj[f][0] = np.dot(R1,pca[f].components_.T)  
-    traj[f][1] = np.dot(R2,pca[f].components_.T)  
-    
+    if f >= 5:
+        traj[f][0] = np.dot(R1,pca[f+1].components_.T)  
+        traj[f][1] = np.dot(R2,pca[f+1].components_.T)  
+    else:
+        traj[f][0] = np.dot(R1,pca[-2,f].components_.T)  
+        traj[f][1] = np.dot(R2,pca[-2,f].components_.T)  
 
 for f in [1,2,3]:
     draw_traj(traj,f,0,2,0)

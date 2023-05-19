@@ -43,6 +43,8 @@ from sklearn.model_selection import ShuffleSplit
 from sklearn.decomposition import PCA, SparsePCA
 
 from os.path import join as pjoin
+from numba import jit, cuda
+
 
 # %% File name and directory
 
@@ -108,6 +110,8 @@ def find_good_data_Ca(t_period):
     
     return good_list
 
+
+@jit(target_backend='cuda')                         
 def import_data_w_spikes(n,prestim,t_period,window,c_ind):
     D_ppc = load_matfile()
     S_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
@@ -263,6 +267,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
 # %% glm_per_neuron function code.
 # Main functions start here. 
+
 def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on): 
     # if using spike data
     if ca == 0:
@@ -290,8 +295,11 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         l = L[:,w]
         # X2 = np.column_stack([np.ones_like(y),X[:,0],l,X[:,2:]])
         # X = np.column_stack([X[:,0],l,X[:,2:]])
-        X3 = np.column_stack([l,X])
+        # X10 = X[:,0]*-1 +1
         
+        X3 = np.column_stack([l,X])
+        # X3 = np.column_stack([X10,X])
+        X4  = X3
         Xm = np.zeros_like(X3)
         Xm[:,m_ind] = 1
         X3 = X3*Xm
@@ -299,7 +307,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         
         # adding kernels to each task variable
         if w*window <= prestim-window:
-            X3[:,1:3] = 0;
+            X3[:,0:3] = 0;
         elif w*window <= prestim+1500-window:
             
             if ca == 0:
@@ -394,8 +402,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         # if c_ind ==0:
         #    # stim_ind = X3[:,3] == 1 
         # else:
-        stim_ind1 = X3[:,2] == 1     
-        stim_ind2 = X3[:,2] == 0  
+        stim_ind1 = X4[:,1] == 1     
+        stim_ind2 = X4[:,1] == 0  
         
     
         ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
@@ -406,11 +414,11 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         ax1.legend(loc = 'upper right')
     
         
-        ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
-                 linewidth = 2.0, color = cmap[2],linestyle = lstyles[2])
-        ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind2,:],0),2),
-                 linewidth = 2.0, color = cmap[2],linestyle = lstyles[3]) 
-        ax3.set_title('Prediction y_hat')
+        # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
+        #          linewidth = 2.0, color = cmap[2],linestyle = lstyles[2])
+        # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind2,:],0),2),
+        #          linewidth = 2.0, color = cmap[2],linestyle = lstyles[3]) 
+        # ax3.set_title('Prediction y_hat')
     
         ax2.set_title('unit_'+str(n+1))
         ax4.set_title('explained variance')
@@ -543,7 +551,7 @@ else:
     D_ppc = load_matfile_Ca()
     good_list = find_good_data_Ca(t_period)
 
-
+# %%
 Data = {}
 
 # additional code for explained variance comparison
@@ -554,25 +562,25 @@ ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
 
 # change c_ind and n here. 
-good_list3 = {}
-for c_ind in c_list:
-    t = 0 
-    good_list2 = [];
-    good_list3[c_ind] =[];
-    for n in good_list:
-        
+# good_list3 = {}
+# for c_ind in c_list:
+#     t = 0 
+#     good_list2 = [];
+    # good_list3[c_ind] =[];
+for n in good_list:
+    for c_ind in c_list:
         n = int(n)
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
             
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
-               
+            # maxS = [0,1,2,3]  
             X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
             Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
 
 
-            good_list2 = np.concatenate((good_list2,[n]))
+            # good_list2 = np.concatenate((good_list2,[n]))
             # print(t,"/",len(good_list))
             # if np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) <= 0.99 and np.mean(np.abs(X[:,1]-X[:,2]),axis = 0) >= 0.01:
             #     good_list3[c_ind] = np.concatenate((good_list3[c_ind],[n]))
@@ -607,7 +615,7 @@ def get_best_kernel(b_ind, window, window2, Data, c_ind, ana_period,good_list):
 
 
     k = 0;
-    for n in good_list2:
+    for n in good_list:
         n = int(n)
         mi, bs, coef,beta_weights,mean_score,score_var,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
         norm_coef = np.abs(coef)
@@ -774,7 +782,8 @@ def make_TV_list(Data,best_kernel,d_list):
 tvlist1 = make_TV_list(Data,best_kernel,d_list3) # Make tvlist for PPC_IC or PPC_AC
 tvlist2 = make_TV_list(Data,best_kernel,d_list)
                     
-# np.save("tvlist_PIC.npy",tvlist)    
+np.save("tvlist_PIC.npy",tvlist1)    
+np.save("tvlist_PAC.npy",tvlist2)    
 
 
 # %% Normalized population average of task variable weights
@@ -783,9 +792,9 @@ d_list = good_list > 179
 
 d_list3 = good_list <= 179
 
-good_list_sep = good_list[d_list3]
+good_list_sep = good_list[:]
 
-weight_thresh = 1*1e-2
+weight_thresh = 2*1e-2
 
 
 
@@ -794,7 +803,7 @@ Convdata = {};
 for c_ind in c_list:
     if c_ind == -1 or c_ind == -2:
         ax_sz = 4
-        cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
+        cmap3 = ['tab:orange','tab:purple','tab:red','tab:olive']
     
         
     elif c_ind == 1 or c_ind == 2:
@@ -814,15 +823,17 @@ for c_ind in c_list:
         # if c_ind == -2: # for rule 2, switch signs for stim, this makes it into contingency
         #     Model_coef[1,:] = -Model_coef[1,:]
     
-        Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
-        # Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        # Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
+        Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
         
         norm_score = np.mean(Model_score, 1)
         norm_score[norm_score < weight_thresh] = 0
-        if np.max(norm_score)>0:
-            norm_score = norm_score/np.max(norm_score)
-        else:
-            norm_score = 0    
+        norm_score[norm_score > 0] = 1
+        # if np.max(norm_score)>0:
+        #     # norm_score = norm_score/np.max(norm_score)
+        #     norm_score = 1
+        # else:
+        #     norm_score = 0    
         conv = Model_coef*norm_score
         for b_ind in np.arange(np.size(Model_coef, 0)):
             Convdata[c_ind,b_ind][n, :] = conv[b_ind, :]
@@ -836,19 +847,91 @@ for c_ind in c_list:
             y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
             axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
             axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-            axes.set_ylim([-0.0,0.20])
+            axes.set_ylim([-0.50,0.50])
     
     
     e_lines = np.array([0, 500, 500+1000, 2500+1000])
     e_lines = e_lines+500
 
 # np.save('D:\Python\ConvR1vsR2_cont.npy',Convdata)
+# %% separate neurons with 5khz coding and 10khz coding
+
+c_ind = -2
+d_list5khz = np.zeros((1,294))
+d_list10khz = np.zeros((1,294))
+
+p = np.arange(20,60) # stim period
+# p = np.arange(60,100)
+
+for n in np.arange(95,294):
+    if np.mean(Convdata[c_ind,1][n,p]) > np.std(Convdata[c_ind,1][n,p]):
+        d_list5khz[0,n] = 1
+    if np.mean(Convdata[c_ind,1][n,p]) < -np.std(Convdata[c_ind,1][n,p]):
+        d_list10khz[0,n] = 1
+
+d_list5khz = (d_list5khz >0)  
+d_list10khz = (d_list10khz >0)        
+      
+
+fig, axes = plt.subplots(2,2,figsize = (12,10))
+
+axes[0,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,1][d_list5khz[0],:],0),c = "tab:blue")
+axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[c_ind,1][d_list10khz[0],:],0).T,c = "tab:blue")
+axes[0,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list5khz[0],:],0).T,c = "tab:red")
+axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0],:],0).T,c = "tab:red") 
+# axes[0,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,3][d_list5khz[0],:],0).T,c = "tab:olive")
+# axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[c_ind,3][d_list10khz[0],:],0).T,c = "tab:olive")      
+
+# %%
+
+weight = {}
+p = np.arange(40,80)
+    
+for f in np.arange(ax_sz):  
+    weight[-1,f]= np.zeros((1,294))
+    weight[-2,f] = np.zeros((1,294))    
+    for c_ind in c_list:
+        for n in np.arange(95):
+            weight[c_ind,f][0,n] = np.mean(Convdata[c_ind,f][n,p])
+            
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+axes.scatter(weight[-1,2],-weight[-2,2])
+axes.set_xlim([-0.8,0.8])
+axes.set_ylim([-0.8,0.8])
+
+
+# %%    
+
+f = 1
+list2 = (weight[-1,f] > 0)* (weight[-2,f] == 0)
+list3 = (weight[-2,f] > 0)* (weight[-1,f] == 0)
+
+list4 = (weight[-1,f] < 0)*(weight[-2,f] < 0)
+
+
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-1,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'solid')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-2,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'dashed')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-1,f][list2[0,:],:],0),c = "tab:red", linestyle = 'solid')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-2,f][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
+axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,1][list2[0,:],:],0),c = "tab:blue", linestyle = 'solid')
+axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,2][list2[0,:],:],0),c = "tab:red", linestyle = 'dashed')
+axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,3][list2[0,:],:],0),c = "tab:olive", linestyle = 'solid')
+# axes.plot(x_axis*1e-3-prestim*1e-3,-np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
+
+axes.legend(["cont_R1","cont_R2","lost_R1","Acq_R2"])
+
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,1][d_list10khz[0],:],0).T,c = "tab:blue")
+# axes[0,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list5khz[0],:],0).T,c = "tab:red")
+# axes[1,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0],:],0).T,c = "tab:red")      
+
 # %% PCA 
 # do PCA multiple times with 90% shuffling
 
 
 n_cv = 100
-max_k = 12
+max_k = 30
 Overlap = {};
 Overlap[c_list[0]] = np.zeros((ax_sz,ax_sz,n_cv));
 Overlap[c_list[1]] = np.zeros((ax_sz,ax_sz,n_cv));
@@ -872,12 +955,12 @@ for k in np.arange(n_cv):
             if shuffle == 1:
                 d_list3[s] = False
 
-# d_list = good_list > 179
+    d_list = good_list > 179
 
-# d_list3 = good_list <= 179
+    d_list3 = good_list <= 179
 
-    for f in np.arange(1,ax_sz):    
-        tvlistnew[f] = np.random.choice(tvlist1[f][0],int(np.floor(np.size(tvlist1[f][0])*0.9)),replace=False)
+    # for f in np.arange(1,ax_sz):    
+    #     tvlistnew[f] = np.random.choice(tvlist1[f][0],int(np.floor(np.size(tvlist1[f][0])*0.9)),replace=False)
 
     pca = {};
     
@@ -887,9 +970,12 @@ for k in np.arange(n_cv):
         for f in np.arange(1,ax_sz):
             # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
             pca[c_ind,f] = PCA(n_components=max_k) 
-            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlistnew[f],:].T,[1,0]))
-            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
-            
+            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlistnew[f],:].T,[1,0]))
+            if f == 1 & c_ind == -2:
+                test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(-Convdata[c_ind,f][d_list3,:].T,[1,0]))
+            else:
+                test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
+            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
             # test = test.T
             # for t in range(5):
             #     axs[f,t].plot(test[t,:],c = cmap3[f])
@@ -968,7 +1054,7 @@ def temporal_var_exp(Convdata,pca,d_list,tlist):
     
     xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
     
-    n_pc = 3
+    n_pc = 10
     n_pc1 = 0
     n_cv = 20
     V_cap = {}
@@ -1051,6 +1137,93 @@ def temporal_var_exp(Convdata,pca,d_list,tlist):
                       colors = 'black', 
                       linewidth = 2.0)
             # axes[f].set_ylim =
+            
+def temporal_var_exp2(Convdata,pca,d_list):
+    l_styles = ['solid','dotted']
+    array_length = np.size(Convdata[-1,0],1)
+    
+    xtime = np.arange(array_length)*50*1e-3-prestim*1e-3
+    
+    n_pc = 3
+    n_pc1 = 0
+    n_cv = 20
+    V_cap = {}
+    V_cap1 = {}
+    for c_ind in c_list:
+        V_cap[c_ind]  =np.zeros((ax_sz,array_length,n_cv))
+        V_cap1[c_ind]  =np.zeros((ax_sz,array_length,n_cv))
+    V_cap1_base = np.zeros((ax_sz,n_cv))
+    # V_cap2_base = np.zeros((ax_sz,n_cv))
+    
+    R = {}
+    for f  in np.arange(1,ax_sz): 
+
+        
+        for cv in np.arange(n_cv):
+            for c_ind in c_list:
+                # if not tlist:
+                R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0])
+                # else:
+                    # R[c_ind] = ndimage.gaussian_filter(Convdata[c_ind,f][tlist[f][0],:].T,[1,0])
+
+                # R0 = ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0])
+            # create baseline explained variance with shuffled data
+            # r_shuffle = np.arange(len(good_list))
+            # np.random.shuffle(r_shuffle)
+            # R2 = R0[:,r_shuffle]
+            # if not tlist:
+            #     R2 = R2[:,d_list]
+            # else:
+            #     R2 = R2[:,tlist[f][0]]    
+            # V_cap1_base[f,cv] = 1-np.linalg.norm(R2 - np.dot(np.dot(R2,pca[c_ind,f].components_[n_pc1:n_pc,:].T),
+            #                                                         pca[c_ind,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R2)
+            
+            # Shuffle d_list by removing 10% 
+            # if not tlist:
+            #     s_list = np.random.choice(np.arange(np.sum(d_list)),int(np.floor(np.sum(d_list)*0.90)),replace=False)
+            # # s_list = np.arange(np.sum(d_list))
+            # else:
+            #     s_list = np.random.choice(np.arange(np.size(tlist[f][0])),int(np.size(tlist[f][0])*0.9),replace = False)
+                
+                # R[c_ind] = R[c_ind][:,s_list]   
+            for c_ind in c_list:
+                for t in np.arange(array_length):                        
+                    V_cap[c_ind][f,t,cv] = 1-np.linalg.norm(R[c_ind][t,d_list] - np.dot(np.dot(R[c_ind][t,d_list],
+                                                                          pca[c_ind,f].components_[n_pc1:n_pc,:].T),
+                                                                            pca[c_ind,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R[c_ind][t,d_list])
+                    
+            for t in np.arange(array_length):                        
+                    V_cap1[-1][f,t,cv] = 1 - np.linalg.norm(R[-1][t,d_list] - np.dot(np.dot(R[-1][t,d_list],
+                                                                          pca[-2,f].components_[n_pc1:n_pc,:].T),
+                                                                            pca[-2,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R[-1][t,d_list])
+                    
+                    V_cap1[-2][f,t,cv] = 1 - np.linalg.norm(R[-2][t,d_list] - np.dot(np.dot(R[-2][t,d_list],
+                                                                          pca[-1,f].components_[n_pc1:n_pc,:].T),
+                                                                            pca[-1,f].components_[n_pc1:n_pc,:]))/np.linalg.norm(R[-2][t,d_list])                   
+                    # V_cap1[c_ind][f,t,cv] = 1-np.linalg.norm(R[c_ind][t,tlist[f][-c_ind]] - np.dot(np.dot(R[c_ind][t,tlist[f][-c_ind]],
+                    #                                                       pca[c_ind,f].components_[n_pc1:n_pc,ss_list[-c_ind]].T),
+                    #                                                         pca[c_ind,f].components_[n_pc1:n_pc,ss_list[-c_ind]]))/np.linalg.norm(R[c_ind][t,tlist[f][-c_ind]])
+                           
+        
+        
+    for c_ind in c_list:                
+        fig, axes = plt.subplots(ax_sz,1,figsize = (10,10))
+        for f  in np.arange(1,ax_sz): 
+        # for c_ind in c_list:
+            axes[f].plot(xtime, np.mean(V_cap[c_ind][f,:,:],1),c = cmap3[f],linestyle = 'solid')#l_styles[np.abs(c_ind)-1])
+            axes[f].fill_between(xtime,np.mean(V_cap[c_ind][f,:,:],1)- np.std(V_cap[c_ind][f,:,:],1),np.mean(V_cap[c_ind][f,:,:],1)+ np.std(V_cap[c_ind][f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
+            
+            axes[f].plot(xtime, np.mean(V_cap1[c_ind][f,:,:],1),c = cmap3[f],linestyle = 'dotted')#l_styles[np.abs(c_ind)-1])
+            axes[f].fill_between(xtime,np.mean(V_cap1[c_ind][f,:,:],1)- np.std(V_cap1[c_ind][f,:,:],1),np.mean(V_cap1[c_ind][f,:,:],1)+ np.std(V_cap1[c_ind][f,:,:],1),facecolor = cmap3[f],alpha = 0.2)
+            
+            y =np.mean(V_cap1_base[f,:])
+                # error = np.std(V_cap1_base[f,:])
+            axes[f].hlines(y, 
+                      xmin = min(xtime), 
+                      xmax = max(xtime),
+                      linestyles = 'dashed',
+                      colors = 'black', 
+                      linewidth = 2.0)
 
                            
             
@@ -1061,13 +1234,18 @@ for c_ind in c_list:
     # fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
     for f in np.arange(1,ax_sz):
         # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-        pca[c_ind,f] = PCA(n_components=max_k) 
+        pca[c_ind,f] = PCA(n_components=max_k)
+        if f == 1 & c_ind == -2:
+            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
+        else:
+            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
         # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist2[f][0],:].T,[1,0]))
-        test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
+        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
 
 
+# temporal_var_exp(Convdata,pca,d_list3,tvlist1)      
         
-temporal_var_exp(Convdata,pca,d_list3,tvlist1)      
+temporal_var_exp2(Convdata,pca,d_list)      
 
 # array_length = np.size(Convdata[-1,0],1)
 # V = np.zeros((1,array_length))
@@ -1202,33 +1380,98 @@ cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
 
 pca = {}
 ax_sz = 4;
-max_k = 14;
+max_k = 20;
 
 for c_ind in c_list:
     fig, axs = plt.subplots(ax_sz,6,figsize = (20,20))
     for f in np.arange(1,ax_sz):
-         # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-        pca[c_ind,f] = PCA(n_components=max_k) 
-            # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][:,:].T,[1,0]))
-        R = Convdata[-1,f][tvlist1[f][0],:] + Convdata[-2,f][tvlist1[f][0],:] 
+        # pca[c_ind,f] = SparsePCA(n_components=10,alpha = 0.01)  
+        pca[c_ind,f] = PCA(n_components=max_k)
+        # if f == 1 & c_ind == -2:
+        #     test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(-Convdata[c_ind,f][d_list,:].T,[1,0]))
+        # else:
+        #     test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
+        # R = Convdata[-1,f][tvlist1[f][0],:] + Convdata[-2,f][tvlist1[f][0],:] 
+        if f == 1:
+            R = Convdata[-1,f][d_list3,:] - Convdata[-2,f][d_list3,:] 
+        else:
+            R = Convdata[-1,f][d_list3,:] + Convdata[-2,f][d_list3,:] 
+
         R = R/2
-        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist1[f][0],:].T,[1,0]))
         test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(R.T,[1,0]))        
+
+        # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][tvlist1[f][0],:].T,[1,0]))
         test = test.T
         for t in range(5):
             axs[f,t].plot(test[t,:],c = cmap3[f])
         axs[f,5].plot(np.cumsum(pca[c_ind,f].explained_variance_ratio_))
    
+    
+   
+    
+# %%   
+# pca = np.load('D:\Python\pca_common_all_PIC.npy',allow_pickle= True).item()
 traj = {};
-for f in  np.arange(1,ax_sz):             
-    R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist1[f][0],:].T,[3,0])
-    R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist1[f][0],:].T,[3,0])        
+
+# tvlist = tvlist1
+
+for f in np.arange(1,4):
+    R1 = ndimage.gaussian_filter(Convdata[-1,f][d_list3,:].T,[4,0])
+    if f == 1:
+        R2 = ndimage.gaussian_filter(-Convdata[-2,f][d_list3,:].T,[4,0])
+    else:
+        R2 = ndimage.gaussian_filter(Convdata[-2,f][d_list3,:].T,[4,0])
+
+
+    # R1 = ndimage.gaussian_filter(D[0,5][d_list3,:].T,[2,0]) 
+    # R2 = ndimage.gaussian_filter(D[1,5][d_list3,:].T,[2,0]) 
     traj[f] = {}
     traj[f][0] = np.dot(R1,pca[-1,f].components_.T)  
-    traj[f][1] = np.dot(R2,pca[-1,f].components_.T)  
+    traj[f][1] = np.dot(R2,pca[-1,f].components_.T)
 
-for f in  np.arange(1,ax_sz):
+# for f in  np.arange(1,5):
+#     if f > 1:                 
+#         R1 = ndimage.gaussian_filter(Convdata[-1,f-1][tvlist[f-1][0],:].T,[5,0])
+#         R2 = ndimage.gaussian_filter(Convdata[-2,f-1][tvlist[f-1][0],:].T,[5,0])
+#     else:
+#         R1 = ndimage.gaussian_filter(Convdata[-1,f][tvlist[f][0],:].T,[5,0])
+#         R2 = ndimage.gaussian_filter(Convdata[-2,f][tvlist[f][0],:].T,[5,0])           
+#     traj[f] = {}
+#     traj[f][0] = np.dot(R1,pca[f].components_.T)  
+#     traj[f][1] = np.dot(R2,pca[f].components_.T)
+
+for f in  np.arange(1,4):
     draw_traj(traj,f,0,2,0)
+
+
+# %%
+D = np.load('D:\Python\Ca_trace.npy',allow_pickle= True).item()
+R1 = ndimage.gaussian_filter(D[1,5][d_list,:].T,[4,0]) 
+R2 = ndimage.gaussian_filter(D[1,6][d_list,:].T,[4,0]) 
+traj[1] = {}
+traj[1][0] = np.dot(R1,pca[-1,f].components_.T)  
+traj[1][1] = np.dot(R2,pca[-1,f].components_.T)
+
+draw_traj(traj,1,0,2,0)
+# %% Calculate trajectory distance
+
+edist = {}
+
+fig, axs = plt.subplots(1,1,figsize = (8,8))
+xtime = np.arange(160)*50*1e-3-prestim*1e-3
+cmap4 = ["tab:orange","tab:blue","tab:red","tab:olive"]
+
+
+for f in np.arange(1,4):
+    # for t in [0,1,2]:
+    #     nmax = np.max(np.abs(np.concatenate(((traj[f][0][:,t],traj[f][1][:,t])))))
+    #     traj[f][0][:,t] = traj[f][0][:,t]/nmax
+    #     traj[f][1][:,t] = traj[f][1][:,t]/nmax
+    
+    
+    edist[f] = np.linalg.norm(traj[f][0][:,0:3]-traj[f][1][:,0:3], axis = 1 )
+    axs.plot(xtime,edist[f], c = cmap4[f])
+    axs.set_ylim(-0.1,3.1)
 
 
 

@@ -865,7 +865,7 @@ e_lines = e_lines+500
 
 # %% PCA
 ax_sz = 5
-tvlist = np.load('tvlist_PAC.npy',allow_pickle= True).item()
+tvlist = np.load('tvlist_PIC.npy',allow_pickle= True).item()
 
 tvlist2= {}
 tvlist2[4] = tvlist[3]
@@ -884,7 +884,7 @@ d_list3 = good_list <= 179
 pca = {};
 for f in np.arange(1,ax_sz):
     # pca[f] = SparsePCA(n_components=10,alpha = 0.01)  
-    pca[f] = PCA(n_components=20) 
+    pca[f] = PCA(n_components=14) 
     # test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][:,:].T,[2,0])) # change to [2,0] if SU data, else, [1,0]
     test = pca[f].fit_transform(ndimage.gaussian_filter(Convdata[f][tvlist2[f][0],:].T,[1,0]))
     
@@ -900,7 +900,7 @@ for f in np.arange(1,ax_sz):
             
 n_cv = 100
 
-np.save('pca_common_all.npy',pca)
+np.save('pca_common_all_PIC.npy',pca)
 
 # p_list = {};
 # # p_list[0] = good_list[d_list].astype(int)
