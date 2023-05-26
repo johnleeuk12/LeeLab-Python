@@ -576,9 +576,15 @@ for n in good_list:
         try:
             
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
+            # maxS = Data[n,c_ind-1]["maxS"]
+            # try: 
+            #     maxS.remove(0)
+            # except:
+            #     maxS = maxS;
+
             # maxS = [0,1,2,3]  
             X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
+            Data[n,c_ind-1] = {"X" : X,"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
 
 
             # good_list2 = np.concatenate((good_list2,[n]))
@@ -592,8 +598,9 @@ for n in good_list:
         except:
             print("Error, probably not enough trials") 
 
-np.save('R1vsR2Data_real2.npy',Data, allow_pickle = True)
+np.save('R1vsR2Data_normalized.npy',Data, allow_pickle = True)
 
+# Data = np.load('R1vsR2Data_real2.npy',allow_pickle= True).item()
 
 
 # %% Calculating best_kernel
@@ -839,6 +846,10 @@ for c_ind in c_list:
         # else:
         #     norm_score = 0    
         conv = Model_coef*norm_score
+        # if np.mean(norm_score*norm_score*1e4) > weight_thresh*1e2:
+        #     conv = Model_coef
+        # else:
+        #     conv = Model_coef*0
         for b_ind in np.arange(np.size(Model_coef, 0)):
             Convdata[c_ind,b_ind][n, :] = conv[b_ind, :]
     
@@ -851,7 +862,7 @@ for c_ind in c_list:
             y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
             axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
             axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-            axes.set_ylim([-0.50,0.50])
+            axes.set_ylim([-0.1,0.1])
     
     
     e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -867,7 +878,7 @@ c_ind = -2
 d_list5khz = np.zeros((1,294))
 d_list10khz = np.zeros((1,294))
 
-p = np.arange(20,60) # stim period
+p = np.arange(100,160) # stim period
 # p = np.arange(60,100)
 
 for n in np.arange(95,294):
@@ -892,67 +903,95 @@ axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0]
 # %%
 
 weight = {}
-p = np.arange(30,70)
+p = np.arange(0,20)
     
 for f in np.arange(ax_sz):  
     weight[-1,f]= np.zeros((1,294))
     weight[-2,f] = np.zeros((1,294))    
     for c_ind in c_list:
-        for n in np.arange(95,294):
+        for n in np.arange(95):
             weight[c_ind,f][0,n] = np.mean(Convdata[c_ind,f][n,p])
             
 fig, axes = plt.subplots(1,1,figsize = (10,8))
-axes.scatter(weight[-1,2],weight[-2,2])
-axes.set_xlim([-0.8,0.8])
-axes.set_ylim([-0.8,0.8])
+axes.scatter(weight[-1,1],-weight[-2,1])
+axes.set_xlim([-0.5,0.5])
+axes.set_ylim([-0.5,0.5])
 
 
 # %%    
 
-f = 1
-list2 = (weight[-1,f] > 0) #* (weight[-2,f] == 0)
-list3 = (weight[-2,f] > 0)# * (weight[-1,f] == 0)
+f = 3
+list2 = (weight[-1,f] > 0.1) #* (weight[-2,f] == 0)
+list3 = (weight[-2,f] > 0.1)# * (weight[-1,f] == 0)
+print(np.sum(list2))
+print(np.sum(list3))
+list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
+# result = stats.linregress(weight[-1,f][list4],-weight[-2,f][list4])
 
-list4 = (weight[-1,f] > 0)*(weight[-2,f] < 0)
+# print(result.rvalue)
 
-
+# 
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-1,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'solid')
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-2,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'dashed')
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-1,f][list2[0,:],:],0),c = "tab:red", linestyle = 'solid')
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,f][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
-axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:blue", linestyle = 'solid')
-axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,2][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
-axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,3][list3[0,:],:],0),c = "tab:olive", linestyle = 'solid')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:blue", linestyle = 'solid')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,2][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
+# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,3][list3[0,:],:],0),c = "tab:olive", linestyle = 'solid')
 # axes.plot(x_axis*1e-3-prestim*1e-3,-np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
 
+f = 2
+y1 = np.mean(np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:])),0)
+s1 = np.std(np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:])),0)/np.sqrt(np.sum(list2)+np.sum(list3))
 
 # y1 = np.mean(Convdata[-1,f][list2[0,:],:],0)
 # s1 = np.std(Convdata[-1,f][list2[0,:],:],0)/np.sqrt(np.sum(list2))
-# y2 = np.mean(Convdata[-2,f][list3[0,:],:],0)
-# s2 = np.std(Convdata[-2,f][list3[0,:],:],0)/np.sqrt(np.sum(list3))
+y2 = np.mean(Convdata[-2,f][list3[0,:],:],0)
+s2 = np.std(Convdata[-2,f][list3[0,:],:],0)/np.sqrt(np.sum(list3))
 
-# p1 = np.arange(40,100)
-# t1 = Convdata[-1,f][list2[0,:],:][:,p1]
+# take history units
 
-# t2 = Convdata[-2,f][list3[0,:],:][:,p1]
-# stats.ttest_ind(np.mean(t1,1),np.mean(t2,1))
 
-# y1 = ndimage.gaussian_filter(y1,2)
-# y2 = ndimage.gaussian_filter(y2,2)
 
-# axes.plot(x_axis*1e-3-prestim*1e-3,y1,"tab:blue",linestyle = 'solid')
-# axes.fill_between(x_axis*1e-3-prestim*1e-3,y1-s1,y1+s1,facecolor = "tab:blue",alpha = 0.3)
+p1 = np.arange(90,110)
+t1 = Convdata[-1,f][list2[0,:],:][:,p1]
 
-# axes.plot(x_axis*1e-3-prestim*1e-3,y2,"tab:blue",linestyle = 'dashed')
-# axes.fill_between(x_axis*1e-3-prestim*1e-3,y2-s2,y2+s2,facecolor = "tab:blue",alpha = 0.3)
+t2 = Convdata[-2,f][list3[0,:],:][:,p1]
+stats.ks_2samp(np.mean(t1,1),np.mean(t2,1))
 
-axes.legend(["cont_R1","cont_R2","lost_R1","Acq_R2"])
+y1 = ndimage.gaussian_filter(y1,2)
+y2 = ndimage.gaussian_filter(y2,2)
+
+cmap = cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
+
+axes.plot(x_axis*1e-3-prestim*1e-3,y1,c = cmap[f],linestyle = 'solid')
+axes.fill_between(x_axis*1e-3-prestim*1e-3,y1-s1,y1+s1,facecolor = cmap[f],alpha = 0.3)
+
+# axes.plot(x_axis*1e-3-prestim*1e-3,y2,c = cmap[f],linestyle = 'dashed')
+# axes.fill_between(x_axis*1e-3-prestim*1e-3,y2-s2,y2+s2,facecolor = cmap[f],alpha = 0.3)
+
+axes.legend(["R1","","R2"])
 
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,1][d_list10khz[0],:],0).T,c = "tab:blue")
 # axes[0,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list5khz[0],:],0).T,c = "tab:red")
 # axes[1,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0],:],0).T,c = "tab:red")      
+
+
+# %% Use model weight to plot units
+
+c_ind = -1
+for n in good_list[list2[0]]:
+    n = int(n)
+        # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
+        # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
+    maxS = Data[n,c_ind-1]["maxS"]
+            # maxS = [0,1,2,3]  
+    X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
+
+
+
 
 # %% PCA 
 # do PCA multiple times with 90% shuffling
@@ -1002,7 +1041,7 @@ for k in np.arange(n_cv):
             # if f == 1 & c_ind == -2:
             #     test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(-Convdata[c_ind,f][d_list3,:].T,[1,0]))
             # else:
-            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list,:].T,[1,0]))
+            test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
             # test = pca[c_ind,f].fit_transform(ndimage.gaussian_filter(Convdata[c_ind,f][d_list3,:].T,[1,0]))
             # test = test.T
             # for t in range(5):

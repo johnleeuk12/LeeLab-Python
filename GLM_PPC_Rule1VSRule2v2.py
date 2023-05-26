@@ -242,6 +242,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
     
 
+
     if c_ind ==1 or c_ind ==-1: # Rule 1
         r_ind = np.arange(200)
     elif c_ind ==2 or c_ind ==-2: # Rule 2
@@ -263,6 +264,10 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # X = np.concatenate((X,XHist),1) # History is added at the end
         
     Y = Y[r_ind,:]
+    # normalize Y 
+    # Y = ndimage.gaussian_filter(Y,[1,0])
+    # Y = Y/(np.max(ndimage.gaussian_filter(Y.T,[0,1]))+0.5)
+    # Y = Y/(np.max(Y)+0.5)
     X2 = X2[r_ind,:]
     L2 = L2[r_ind,:]
 
@@ -271,6 +276,8 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
         
     return X2,Y, L2, Rt 
 
+
+# plt.plot(ndimage.gaussian_filter(Y.T,[0,1]))
 
 # %% glm_per_neuron function code.
 # Main functions start here. 
@@ -311,7 +318,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         Xm[:,m_ind] = 1
         X3 = X3*Xm
 
-        
+        if w*window > prestim + window:
+            X3[:,3] = 0;
         # adding kernels to each task variable
         if w*window <= prestim-window:
             X3[:,0:3] = 0;
@@ -485,7 +493,7 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
     
     return max_ind, best_score, coef, model_mean, score_mean, score_var, score_pool
 
-# %% 
+# %% Build model
 
 def build_model(n, t_period, prestim, window,k,c_ind,ca):
     for m_ind in [0,1,2,3]:
@@ -586,7 +594,7 @@ for n in good_list:
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
             # maxS = [0,1,2,3]  
             X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
+            Data[n,c_ind-1] = {"X" : X,"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
 
 
             # good_list2 = np.concatenate((good_list2,[n]))
@@ -600,7 +608,7 @@ for n in good_list:
         except:
             print("Error, probably not enough trials") 
 
-np.save('R1vsR2Data.npy',Data, allow_pickle = True)
+# np.save('R1vsR2Data_norm.npy',Data, allow_pickle = True)
 
 Data = np.load('R1vsR2Data.npy',allow_pickle= True).item()
 # %% testing model weight stuff
@@ -610,9 +618,9 @@ fig, axes = plt.subplots(2,2,figsize = (10,8))
 
 x_axis = np.arange(1, prestim+t_period, window)
 axes[0,0].plot(x_axis,np.mean(Y[X[:,1]==1,:],0), linestyle = 'solid')
-axes[0,0].plot(x_axis,np.mean(Y[X[:,1]==-1,:],0), linestyle = 'dotted')
+axes[0,0].plot(x_axis,np.mean(Y[X[:,1]==0,:],0), linestyle = 'dotted')
 axes[1,0].plot(x_axis,np.mean(Yhat[X[:,1]==1,:],0), linestyle = 'solid')
-axes[1,0].plot(x_axis,np.mean(Yhat[X[:,1]==-1,:],0), linestyle = 'dotted')
+axes[1,0].plot(x_axis,np.mean(Yhat[X[:,1]==0,:],0), linestyle = 'dotted')
 
 ymean = np.zeros((1,160))
 ymean[0,:] = intercept
@@ -624,12 +632,12 @@ yhat2 = X2[:,[0,2]] @ theta3[[0,2],:]
 
 yhat3 = X2[:,[0,3]] @ theta3[[0,3],:]
 
-axes[0,1].plot(x_axis,np.mean(yhat2[X[:,1]==1,:],0), linestyle = 'solid')
-axes[0,1].plot(x_axis,np.mean(yhat2[X[:,1]==0,:],0), linestyle = 'dotted')
-axes[0,1].plot(x_axis,intercept)
+axes[0,1].plot(x_axis,np.mean(yhat2[X[:,1]==1,:],0), c = "tab:blue",linestyle = 'solid')
+axes[0,1].plot(x_axis,np.mean(yhat2[X[:,1]==0,:],0),c = "tab:blue", linestyle = 'dotted')
+# axes[0,1].plot(x_axis,intercept)
 
-axes[1,1].plot(x_axis,np.mean(yhat3[X[:,2]==1,:],0), linestyle = 'solid')
-axes[1,1].plot(x_axis,np.mean(yhat3[X[:,2]==0,:],0), linestyle = 'dotted')
+axes[1,1].plot(x_axis,np.mean(yhat3[X[:,2]==1,:],0),c = "tab:red", linestyle = 'solid')
+axes[1,1].plot(x_axis,np.mean(yhat3[X[:,2]==0,:],0),c = "tab:red", linestyle = 'dotted')
 
 # %% for each weight, get corresponding yhat
 # Calculating R2 per neuron
@@ -644,18 +652,24 @@ Rscore = {}
 for c_ind in c_list:
     Rscore[c_ind] = np.zeros((ax_sz+1,np.size(good_list)))
     
-y_lens = np.arange(0,100)
+y_lens = np.arange(100,160)
 for c_ind in c_list:    
     for n in np.arange(np.size(good_list,0)):
-        print(n)
+        # print(n)
         nn = good_list[n]
         nn = int(nn)
-        maxS = Data[nn,c_ind-1]["maxS"]    
-        X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(nn, t_period, prestim, window,k,c_ind,ca,maxS,0)
-        Y = Y[:,y_lens]
-        Yhat = Yhat[:,y_lens]
-
-        ymean = np.ones((len(y_lens),np.size(X,0))).T*intercept[y_lens]
+        maxS = Data[nn,c_ind-1]["maxS"]
+        try:
+            X = Data[nn,c_ind-1]["X"]
+        except:                
+            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(nn, t_period, prestim, window,k,c_ind,ca,maxS,0)
+            Data[nn,c_ind-1] = {"X" : X,"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
+        
+        Y = Data[nn,c_ind-1]["Y"][:,y_lens]
+        Yhat = Data[nn,c_ind-1]["Yhat"][:,y_lens]
+        # intercept = Data[nn,c_ind-1]["intercept"]
+        Model_Theta = Data[nn,c_ind-1]["coef"]
+        ymean = np.ones((len(y_lens),np.size(X,0))).T*Data[nn,c_ind-1]["intercept"][y_lens]
         # ymean[0,:] = intercept
         
         theta3 = np.concatenate(([ymean[0,:]],Model_Theta[:,y_lens]),0)
@@ -670,53 +684,72 @@ for c_ind in c_list:
         Rscore[c_ind][ax_sz,n] = 1- np.sum(np.square(Y-Yhat))/np.sum(np.square(Y-ymean))
         # Rscore[c_ind][:,n]    
 
-scatter_ind = [np.arange(ax_sz+1)]*np.ones((ax_sz+1,len(good_list))).T
-scatter_ind = scatter_ind.T
+# scatter_ind = [np.arange(ax_sz+1)]*np.ones((ax_sz+1,len(good_list))).T
+# scatter_ind = scatter_ind.T
 
 # %% 
 cmap = ['tab:orange','tab:blue','tab:red','tab:olive']
 c_ind = -1
-fig, axes = plt.subplots(1,1, figsize = (10,8))
 
 d_list = good_list > 179
 # 
 d_list3 = good_list <= 179
 # d_list3 = good_list > 179
 
-Rsstat = {}
-for c_ind in c_list:
-    for f in np.arange(1,ax_sz):
-        Rs = Rscore[c_ind][f,d_list3]
-        Rs = Rs[Rs>0.01]
-        Rsstat[c_ind,f] = Rs
-        axes.scatter(np.ones_like(Rs)*(f+(c_ind+1)*-0.3),Rs,c = cmap[f])
-        axes.scatter([(f+(c_ind+1)*-0.3)],np.mean(Rs),c = 'k',s = 500, marker='_')
-        # axes.boxplot(Rs,positions= [f+(c_ind+1)*-0.3])
-    axes.scatter(np.ones_like(Rscore[c_ind][4,d_list3])*(4+(c_ind+1)*-0.3),Rscore[c_ind][4,d_list3])
-    axes.scatter([(4+(c_ind+1)*-0.3)],np.mean(Rscore[c_ind][4,d_list3]),c = 'k',s = 500, marker='_')
-    Rsstat[c_ind,4] = Rscore[c_ind][4,d_list3]
 
-    # axes.boxplot(Rscore[c_ind][4,d_list3],positions= [4+(c_ind+1)*-0.3])
-    axes.set_ylim([-0.05,0.6])
+def make_RS(d_list):
+    fig, axes = plt.subplots(1,1, figsize = (10,8))
+    Rsstat = {}
+    for c_ind in c_list:
+        for f in np.arange(1,ax_sz):
+            Rs = Rscore[c_ind][f,d_list]
+            Rmax = Rscore[c_ind][4,d_list]
+            Rmax = Rmax[Rs>0.01]
+            Rs = Rs[Rs>0.01]
+    
+            Rs = Rs/(Rmax+0.03)
+            Rsstat[c_ind,f] = Rs
+            axes.scatter(np.ones_like(Rs)*(f+(c_ind+1)*-0.3),Rs,c = cmap[f])
+            axes.scatter([(f+(c_ind+1)*-0.3)],np.mean(Rs),c = 'k',s = 500, marker='_')
+            # axes.boxplot(Rs,positions= [f+(c_ind+1)*-0.3])
+        axes.scatter(np.ones_like(Rscore[c_ind][4,d_list])*(4+(c_ind+1)*-0.3),Rscore[c_ind][4,d_list])
+        axes.scatter([(4+(c_ind+1)*-0.3)],np.mean(Rscore[c_ind][4,d_list]),c = 'k',s = 500, marker='_')
+        
+        Rsstat[c_ind,4] = Rscore[c_ind][4,d_list]
+    
+        # axes.boxplot(Rscore[c_ind][4,d_list3],positions= [4+(c_ind+1)*-0.3])
+        axes.set_ylim([-0.05,1.0])
 
+    return Rsstat
 
-RsStat_PIC = Rsstat
+RsStat_PIC = make_RS(d_list3)
+RsStat_PAC = make_RS(d_list)
+
+    # RsStat_PIC = Rsstat
 
 res = {}
 
-# stats.ks_2samp(RsStat_PAC[-1,4],RsStat_PIC[-1,4])
+
+f = 1
+y1 = np.concatenate((RsStat_PAC[-1,f],RsStat_PAC[-2,f]),0)
+y2 = np.concatenate((RsStat_PIC[-1,f],RsStat_PIC[-2,f]),0)
+res = stats.ks_2samp(y1,y2)
+print(res[1])
+print(np.mean(y1))
+print(np.mean(y2))
+
 
 # for c_ind in c_list:
-for f in np.arange(1,ax_sz):    
-    s = stats.ks_2samp(Rsstat[-2,4],Rsstat[-1,4])
-    print(s[1])
+# for f in np.arange(1,ax_sz+1):    
+#     s = stats.ks_2samp(Rsstat[-2,f],Rsstat[-1,f])
+#     print(s[1])
 
 # axes[0].scatter(np.ones_like(Rscore[c_ind][4,d_list])*4,Rscore[c_ind][4,d_list])
 
 
 
 # axes[1].scatter(scatter_ind,Rscore[-1])
-
+# %% 
 
 
 
