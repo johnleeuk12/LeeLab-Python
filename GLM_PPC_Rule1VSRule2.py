@@ -598,9 +598,9 @@ for n in good_list:
         except:
             print("Error, probably not enough trials") 
 
-np.save('R1vsR2Data_normalized.npy',Data, allow_pickle = True)
+# np.save('R1vsR2Data_normalized.npy',Data, allow_pickle = True)
 
-# Data = np.load('R1vsR2Data_real2.npy',allow_pickle= True).item()
+Data = np.load('R1vsR2Data_real2.npy',allow_pickle= True).item()
 
 
 # %% Calculating best_kernel
@@ -805,9 +805,9 @@ d_list3 = good_list <= 179
 
 good_list_sep = good_list[:]
 
-weight_thresh = 2*1e-2
+weight_thresh = 4*1e-2
 
-
+score = np.arange(160)
 
 Convdata = {};
 
@@ -841,8 +841,8 @@ for c_ind in c_list:
         norm_score[norm_score < weight_thresh] = 0
         norm_score[norm_score > 0] = 1
         # if np.max(norm_score)>0:
-        #     # norm_score = norm_score/np.max(norm_score)
-        #     norm_score = 1
+        #     norm_score = norm_score/np.max(norm_score)
+        #     # norm_score = 1
         # else:
         #     norm_score = 0    
         conv = Model_coef*norm_score
@@ -903,13 +903,16 @@ axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0]
 # %%
 
 weight = {}
-p = np.arange(0,20)
+# p = np.arange(140,160)
+p = np.arange(20,50)
+
+
     
 for f in np.arange(ax_sz):  
     weight[-1,f]= np.zeros((1,294))
     weight[-2,f] = np.zeros((1,294))    
     for c_ind in c_list:
-        for n in np.arange(95):
+        for n in np.arange(95,294):
             weight[c_ind,f][0,n] = np.mean(Convdata[c_ind,f][n,p])
             
 fig, axes = plt.subplots(1,1,figsize = (10,8))
@@ -921,8 +924,8 @@ axes.set_ylim([-0.5,0.5])
 # %%    
 
 f = 3
-list2 = (weight[-1,f] > 0.1) #* (weight[-2,f] == 0)
-list3 = (weight[-2,f] > 0.1)# * (weight[-1,f] == 0)
+list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
+list3 = (weight[-2,f] < -0.1)# * (weight[-1,f] == 0)
 print(np.sum(list2))
 print(np.sum(list3))
 list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
@@ -942,9 +945,12 @@ fig, axes = plt.subplots(1,1,figsize = (10,8))
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,3][list3[0,:],:],0),c = "tab:olive", linestyle = 'solid')
 # axes.plot(x_axis*1e-3-prestim*1e-3,-np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
 
-f = 2
-y1 = np.mean(np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:])),0)
-s1 = np.std(np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:])),0)/np.sqrt(np.sum(list2)+np.sum(list3))
+f = 1
+
+C = np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:]))
+C = C[np.max!(C,1)>0,:]
+y1 = np.mean(C,0)
+s1 = np.std(C,0)/np.sqrt(np.size(C,0))
 
 # y1 = np.mean(Convdata[-1,f][list2[0,:],:],0)
 # s1 = np.std(Convdata[-1,f][list2[0,:],:],0)/np.sqrt(np.sum(list2))
