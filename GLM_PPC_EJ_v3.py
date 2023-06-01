@@ -299,7 +299,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
     # reg = Ridge(alpha = 4*1e-2)
     for w in range(int(t_period/window)):
         y = Y2[:,w]
-        l = L[:,w]
+        l = L[:,w]*0
         # X2 = np.column_stack([np.ones_like(y),X[:,0],l,X[:,2:]])
         # X = np.column_stack([X[:,0],l,X[:,2:]])
         X3 = np.column_stack([l,X])
@@ -453,7 +453,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         plt.show()
     Model_Theta = TT2
     
-    return X3, Y, Yhat, Model_Theta, score, Yhat1, Yhat2
+    return X3, Y, Yhat, Model_Theta, score, Intercept   
 
 # %% Main
         
@@ -586,6 +586,7 @@ else:
 # %%
 Data = {}
 
+Data = np.load('D:\Python\Data_PPCAll_Ca_05_26.npy',allow_pickle= True).item()
 
 # additional code for explained variance comparison
 DataS = {}
@@ -607,7 +608,7 @@ for c_ind in c_list:
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
             # maxS = [0,1,2,3,4]   
             X, Y, Yhat, Model_Theta, score, Yhat1, Yhat2 = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
-            Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat,'maxS' : maxS}
+            Data[n,c_ind-1] = {"X":X,"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat,'maxS' : maxS}
             # t += 1
             # print(t,"/",len(good_list))
             good_list2 = np.concatenate((good_list2,[n]))
@@ -619,7 +620,7 @@ for c_ind in c_list:
         except:
             
             print("Error, probably not enough trials") 
-        
+# np.save('Data_PPCAll_Ca_05_26.npy', Data,allow_pickle= True)     
 
 # %% Save Data since it takes forever
 # # np.save('Data_PPCAll_Ca_v3.npy', Data)
@@ -821,6 +822,7 @@ if c_ind == 0 or c_ind == -2:
     clabels = ["lick","Contingency","stim","reward","history"]
     lstyles = ['solid','solid','solid','solid','solid']
     
+score = np.zeros((160,1))
 
 
 Convdata = {}
@@ -835,7 +837,10 @@ for n in np.arange(np.size(good_list_sep,0)):
     Model_coef = Data[nn, c_ind-1]["coef"]
     Model_score = Data[nn, c_ind-1]["score"]
 
-    Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.1) # soft normalization value for model_coef
+    # Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.1) # soft normalization value for model_coef
+    Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.1) # soft normalization value for model_coef
+
+    
     norm_score = np.mean(Model_score, 1)
     norm_score[norm_score < weight_thresh] = 0
     if np.max(norm_score)>0:

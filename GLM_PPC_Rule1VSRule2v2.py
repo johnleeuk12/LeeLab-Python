@@ -646,13 +646,13 @@ d_list = good_list > 179
 
 d_list3 = good_list <= 179
 
-good_list_sep = good_list[d_list3]
+good_list_sep = good_list[:]
 
 Rscore = {}
 for c_ind in c_list:
     Rscore[c_ind] = np.zeros((ax_sz+1,np.size(good_list)))
     
-y_lens = np.arange(100,160)
+y_lens = np.arange(160)
 for c_ind in c_list:    
     for n in np.arange(np.size(good_list,0)):
         # print(n)
@@ -701,13 +701,13 @@ def make_RS(d_list):
     fig, axes = plt.subplots(1,1, figsize = (10,8))
     Rsstat = {}
     for c_ind in c_list:
-        for f in np.arange(1,ax_sz):
+        for f in np.arange(0,ax_sz):
             Rs = Rscore[c_ind][f,d_list]
             Rmax = Rscore[c_ind][4,d_list]
             Rmax = Rmax[Rs>0.01]
-            Rs = Rs[Rs>0.01]
+            # Rs = Rs[Rs>0.01]
     
-            Rs = Rs/(Rmax+0.03)
+            # Rs = Rs/(Rmax+0.03)
             Rsstat[c_ind,f] = Rs
             axes.scatter(np.ones_like(Rs)*(f+(c_ind+1)*-0.3),Rs,c = cmap[f])
             axes.scatter([(f+(c_ind+1)*-0.3)],np.mean(Rs),c = 'k',s = 500, marker='_')
@@ -731,12 +731,12 @@ res = {}
 
 
 f = 1
-y1 = np.concatenate((RsStat_PAC[-1,f],RsStat_PAC[-2,f]),0)
-y2 = np.concatenate((RsStat_PIC[-1,f],RsStat_PIC[-2,f]),0)
-res = stats.ks_2samp(y1,y2)
-print(res[1])
-print(np.mean(y1))
-print(np.mean(y2))
+# y1 = np.concatenate((RsStat_PAC[-1,f],RsStat_PAC[-2,f]),0)
+# y2 = np.concatenate((RsStat_PIC[-1,f],RsStat_PIC[-2,f]),0)
+# res = stats.ks_2samp(y1,y2)
+# print(res[1])
+# print(np.mean(y1))
+# print(np.mean(y2))
 
 
 # for c_ind in c_list:

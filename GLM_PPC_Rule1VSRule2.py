@@ -212,10 +212,22 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     t_period = t_period+prestim
     
     # re-formatting Ca traces
-    
+    Yraw = {}
+    Yraw = D_ppc[n,0]
+    Yraw2 = np.concatenate((np.flip(Yraw[0,0:3000],0),Yraw[0,:],Yraw[0,-3000:-1]),0)
+    sliding_w= np.lib.stride_tricks.sliding_window_view(np.arange(np.size(Yraw,1)+6000), 6000)
+    Ymed_wind = np.zeros((1,np.size(Yraw,1)))
+    for s in np.arange(np.size(Yraw,1)):
+        Ymed_wind[0,s] = np.median(Yraw2[sliding_w[s,:]])
+        
+    Yraw3 = Yraw-Ymed_wind+np.mean(Yraw)
     Y = np.zeros((N_trial,int(t_period/window)))
     for tr in range(N_trial):
-        Y[tr,:] = D_ppc[n,0][0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
+        Y[tr,:] = Yraw3[0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
+
+    # Y = np.zeros((N_trial,int(t_period/window)))
+    # for tr in range(N_trial):
+    #     Y[tr,:] = D_ppc[n,0][0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
                 
     
                 
@@ -583,7 +595,7 @@ for n in good_list:
             #     maxS = maxS;
 
             # maxS = [0,1,2,3]  
-            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
+            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[n,c_ind-1] = {"X" : X,"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
 
 
@@ -598,7 +610,7 @@ for n in good_list:
         except:
             print("Error, probably not enough trials") 
 
-# np.save('R1vsR2Data_normalized.npy',Data, allow_pickle = True)
+# np.save('R1vsR2Data_0530.npy',Data, allow_pickle = True)
 
 Data = np.load('R1vsR2Data_real2.npy',allow_pickle= True).item()
 
@@ -699,20 +711,24 @@ pie_accumulated(Data,best_kernel, -2)
 # %% bar chart regarding pie chart
 cmap = ['tab:orange','tab:blue','tab:red','tab:olive'] 
 
-b1 = [31, 67, 16, 57]
-b2 = [25, 49, 51, 59]
-b3 = [9, 43, 14, 42]
+# b1 = [31, 67, 16, 57]
+# b2 = [25, 49, 51, 59]
+# b3 = [9, 43, 14, 42]
+
+
+
 
 #  ppc_AC
-# b1 = [46, 107,  68, 132]
-# b2 = [52,  70,  74, 106]
-# b3 = [9, 37, 37, 77]
+b1 = [46, 107,  68, 132]
+b2 = [52,  70,  74, 106]
+b3 = [9, 37, 37, 77]
 
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 axes.bar(np.arange(4)*2,b1, color = cmap, alpha = 0.5)
 axes.bar(np.arange(4)*2+1,b2, color = cmap, alpha = 1)
 axes.bar(np.arange(4)*2,b3, color = 'tab:gray', alpha = 0.7)
 axes.bar(np.arange(4)*2+1,b3, color = 'tab:gray', alpha = 0.7)
+axes.set_xlim([1.5, 7.55])
 
 
 # %% task variable evolution per unit
@@ -814,7 +830,7 @@ Convdata = {};
 for c_ind in c_list:
     if c_ind == -1 or c_ind == -2:
         ax_sz = 4
-        cmap3 = ['tab:orange','tab:purple','tab:red','tab:olive']
+        cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
     
         
     elif c_ind == 1 or c_ind == 2:
@@ -857,12 +873,18 @@ for c_ind in c_list:
     x_axis = np.arange(1, prestim+t_period, window)
     fig, axes = plt.subplots(1,1,figsize = (10,8))
     
-    for f in range(ax_sz):
-            error = np.std(Convdata[c_ind,f],0)/np.sqrt(np.size(good_list_sep))
-            y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
+    for f in range(1,ax_sz):
+            # plotting only units with non-zero weights
+            
+            C = Convdata[c_ind,f]
+            C = C[np.max(np.abs(C),1) > 0,:]
+            error = np.std(C,0)/np.sqrt(np.size(C,0))
+            y = ndimage.gaussian_filter(np.mean(C,0),2)
+            # error = np.std(Convdata[c_ind,f],0)/np.sqrt(np.size(good_list_sep))
+            # y = ndimage.gaussian_filter(np.mean(Convdata[c_ind,f],0),1)
             axes.plot(x_axis*1e-3-prestim*1e-3,y,c = cmap3[f])
             axes.fill_between(x_axis*1e-3-prestim*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
-            axes.set_ylim([-0.1,0.1])
+            axes.set_ylim([-0.2,0.4])
     
     
     e_lines = np.array([0, 500, 500+1000, 2500+1000])
@@ -903,8 +925,8 @@ axes[1,0].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0]
 # %%
 
 weight = {}
-# p = np.arange(140,160)
-p = np.arange(20,50)
+# p = np.arange(0,25)
+p = np.arange(25,50)
 
 
     
@@ -917,18 +939,18 @@ for f in np.arange(ax_sz):
             
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 axes.scatter(weight[-1,1],-weight[-2,1])
-axes.set_xlim([-0.5,0.5])
-axes.set_ylim([-0.5,0.5])
+axes.set_xlim([-0.8,0.8])
+axes.set_ylim([-0.8,0.8])
 
 
 # %%    
 
-f = 3
+f = 1
 list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
-list3 = (weight[-2,f] < -0.1)# * (weight[-1,f] == 0)
+list3 = (weight[-2,f] > 0.1)# * (weight[-1,f] == 0)
 print(np.sum(list2))
 print(np.sum(list3))
-list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
+# list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
 # result = stats.linregress(weight[-1,f][list4],-weight[-2,f][list4])
 
 # print(result.rvalue)
@@ -936,57 +958,51 @@ list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
 # 
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-1,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'solid')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(-Convdata[-2,f][list4[0,:],:],0),c = "tab:blue", linestyle = 'dashed')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-1,f][list2[0,:],:],0),c = "tab:red", linestyle = 'solid')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,f][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:blue", linestyle = 'solid')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,2][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
-# axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[-2,3][list3[0,:],:],0),c = "tab:olive", linestyle = 'solid')
-# axes.plot(x_axis*1e-3-prestim*1e-3,-np.mean(Convdata[-2,1][list3[0,:],:],0),c = "tab:red", linestyle = 'dashed')
+for f in [1]:
+    
+    
+    C = np.concatenate((Convdata[-1,f][list2[0,:],:], -Convdata[-2,f][list3[0,:],:]))
+    C = C[np.max(np.abs(C),1)>0.1,:]
+    y1 = np.mean(C,0)
+    s1 = np.std(C,0)/np.sqrt(np.size(C,0))
+    
+    # y1 = np.mean(Convdata[-1,f][list2[0,:],:],0)
+    # s1 = np.std(Convdata[-1,f][list2[0,:],:],0)/np.sqrt(np.sum(list2))
+    y2 = np.mean(Convdata[-2,f][list3[0,:],:],0)
+    s2 = np.std(Convdata[-2,f][list3[0,:],:],0)/np.sqrt(np.sum(list3))
+    
+    # take history units
+    
+    
+    
+    # p1 = np.arange(90,110)
+    t1 = Convdata[-1,f][list2[0,:],:]
+    
+    t2 = Convdata[-2,f][list3[0,:],:]
+    # stats.ks_2samp(np.mean(t1,1),np.mean(t2,1))
+    
+    y1 = ndimage.gaussian_filter(y1,2)
+    y2 = ndimage.gaussian_filter(y2,2)
+    
+    cmap = cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
+    
+    axes.plot(x_axis*1e-3-prestim*1e-3,y1,c = cmap[f],linestyle = 'dashed')
+    axes.fill_between(x_axis*1e-3-prestim*1e-3,y1-s1,y1+s1,facecolor = cmap[f],alpha = 0.3)
+    
+    # axes.plot(x_axis*1e-3-prestim*1e-3,y2,c = cmap[f],linestyle = 'dashed')
+    # axes.fill_between(x_axis*1e-3-prestim*1e-3,y2-s2,y2+s2,facecolor = cmap[f],alpha = 0.3)
+    
+    axes.legend(["R1","","R2"])
+    # axes.set_ylim([-0.12,0.05])
+    plt.savefig("PPC_IC_hist3.svg")
 
-f = 1
-
-C = np.concatenate((Convdata[-1,f][list2[0,:],:], Convdata[-2,f][list3[0,:],:]))
-C = C[np.max!(C,1)>0,:]
-y1 = np.mean(C,0)
-s1 = np.std(C,0)/np.sqrt(np.size(C,0))
-
-# y1 = np.mean(Convdata[-1,f][list2[0,:],:],0)
-# s1 = np.std(Convdata[-1,f][list2[0,:],:],0)/np.sqrt(np.sum(list2))
-y2 = np.mean(Convdata[-2,f][list3[0,:],:],0)
-s2 = np.std(Convdata[-2,f][list3[0,:],:],0)/np.sqrt(np.sum(list3))
-
-# take history units
-
-
-
-p1 = np.arange(90,110)
-t1 = Convdata[-1,f][list2[0,:],:][:,p1]
-
-t2 = Convdata[-2,f][list3[0,:],:][:,p1]
-stats.ks_2samp(np.mean(t1,1),np.mean(t2,1))
-
-y1 = ndimage.gaussian_filter(y1,2)
-y2 = ndimage.gaussian_filter(y2,2)
-
-cmap = cmap3 = ['tab:orange','tab:blue','tab:red','tab:olive']
-
-axes.plot(x_axis*1e-3-prestim*1e-3,y1,c = cmap[f],linestyle = 'solid')
-axes.fill_between(x_axis*1e-3-prestim*1e-3,y1-s1,y1+s1,facecolor = cmap[f],alpha = 0.3)
-
-# axes.plot(x_axis*1e-3-prestim*1e-3,y2,c = cmap[f],linestyle = 'dashed')
-# axes.fill_between(x_axis*1e-3-prestim*1e-3,y2-s2,y2+s2,facecolor = cmap[f],alpha = 0.3)
-
-axes.legend(["R1","","R2"])
 
 # axes.plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,1][d_list10khz[0],:],0).T,c = "tab:blue")
 # axes[0,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list5khz[0],:],0).T,c = "tab:red")
 # axes[1,1].plot(x_axis*1e-3-prestim*1e-3,np.mean(Convdata[c_ind,2][d_list10khz[0],:],0).T,c = "tab:red")      
 
-
+print(np.sum(list2+list3))
 # %% Use model weight to plot units
-
 c_ind = -1
 for n in good_list[list2[0]]:
     n = int(n)

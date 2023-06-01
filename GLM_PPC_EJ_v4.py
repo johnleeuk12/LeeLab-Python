@@ -121,6 +121,7 @@ def find_good_data_Ca(t_period):
     return good_list
 
 def sliding_median(arr, window):
+    
     return np.median(np.lib.stride_tricks.sliding_window_view(arr, (window,)), axis=1)
 
 @jit(target_backend='cuda')                         
@@ -242,13 +243,30 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     t_period = t_period+prestim
     
     # re-formatting Ca traces
+    Yraw = {}
     Yraw = D_ppc[n,0]
-    Y_median = sliding_median(Yraw[0,:],200)
-    Yraw[0,100:-99] = (Yraw[0,100:-99]-Y_median)/Y_median
+    
+    
+    
+    # Yraw2 = ndimage.median_filter(Yraw, size = 3000)
+    # Y_median = sliding_median(Yraw[0,:],200)
+    Yraw2 = np.concatenate((np.flip(Yraw[0,0:3000],0),Yraw[0,:],Yraw[0,-3000:-1]),0)
+    sliding_w= np.lib.stride_tricks.sliding_window_view(np.arange(np.size(Yraw,1)+6000), 6000)
+    Ymed_wind = np.zeros((1,np.size(Yraw,1)))
+    for s in np.arange(np.size(Yraw,1)):
+        Ymed_wind[0,s] = np.median(Yraw2[sliding_w[s,:]])
+        
+    Yraw3 = Yraw-Ymed_wind+np.mean(Yraw)
+    
+    # fig, axes = plt.subplots(1,1)
+    # axes.plot(np.arange(85141),ndimage.gaussian_filter(Yraw[0,:],1000))
+    # axes.plot(np.arange(85141),ndimage.gaussian_filter(Yraw3[0,:],1000))    
+    
+    # Yraw[0,100:-99] = (Yraw[0,100:-99]-Y_median)/Y_median
     
     Y = np.zeros((N_trial,int(t_period/window)))
     for tr in range(N_trial):
-        Y[tr,:] = Yraw[0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
+        Y[tr,:] = Yraw3[0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
     
     
     # for t in np.arange(int(t_period/window)):
@@ -442,12 +460,12 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         stim_ind2 = X3[:,2] == 0  
         
     
-        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
-        #           linewidth = 2.0, color = cmap[2],label = 'Reward',linestyle = lstyles[3])
-        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
-        #           linewidth = 2.0, color = cmap[2],label = 'No Reward',linestyle = lstyles[3])
-        # ax1.set_title('Firing rate y')
-        # ax1.legend(loc = 'upper right')
+        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
+                  linewidth = 2.0, color = cmap[2],label = 'Reward',linestyle = lstyles[3])
+        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
+                  linewidth = 2.0, color = cmap[2],label = 'No Reward',linestyle = lstyles[3])
+        ax1.set_title('Firing rate y')
+        ax1.legend(loc = 'upper right')
     
         
         # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
@@ -594,7 +612,7 @@ else:
 
 # %%
 Data = {}
-Data = np.load('D:\Python\Data_PPCAll_Ca_05_27.npy',allow_pickle= True).item()
+Data = np.load('D:\Python\Data_PPCAll_Ca_05_31.npy',allow_pickle= True).item()
 
 # additional code for explained variance comparison
 DataS = {}
@@ -613,8 +631,8 @@ for c_ind in c_list:
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
         # Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score} 
         try:
-            # maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
-            maxS = Data[n,c_ind-1]["maxS"]
+            maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
+            # maxS = Data[n,c_ind-1]["maxS"]
             # maxS = [0,1,2,3]   
             X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[n,c_ind-1] = {"X":X,"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat,'maxS' : maxS, "intercept" : intercept}
@@ -629,7 +647,7 @@ for c_ind in c_list:
         except:
             
             print("Error, probably not enough trials") 
-# np.save('Data_PPCAll_Ca_05_27.npy', Data,allow_pickle= True)     
+# np.save('Data_PPCall_Ca_05_31.npy', Data,allow_pickle= True)     
 
 # %% for each weight, get corresponding yhat
 # Calculating R2 per neuron
@@ -645,7 +663,7 @@ good_list_sep = good_list[d_list3]
 # Rscore = {}
 Rscore = np.zeros((ax_sz+1,np.size(good_list)))
     
-y_lens = np.arange(100,160)
+y_lens = np.arange(160)
    
 for n in np.arange(np.size(good_list,0)):
         # print(n)
@@ -653,7 +671,7 @@ for n in np.arange(np.size(good_list,0)):
     nn = int(nn)
     maxS = Data[nn,c_ind-1]["maxS"]
     try:
-        # X = Data[nn,c_ind-1]["X"]
+        X = Data[nn,c_ind-1]["X"]
         intercept = Data[nn,c_ind-1]["intercept"]
 
     except:                
@@ -802,7 +820,7 @@ c_ind = -2
 
 # good_list_sep = good_list[cat_list]
 # good_list_sep = good_list[d_list & good_listR]
-good_list_sep = good_list[d_list]
+good_list_sep = good_list[:]
 
 
 weight_thresh = 2*1e-2
@@ -815,7 +833,7 @@ if c_ind == 0 or c_ind == -2:
     lstyles = ['solid','solid','solid','solid','solid']
     
 
-
+score = np.zeros((160,1))
 Convdata = {}
 norm_score_all = {};
 norm_score_all = np.zeros((np.size(good_list_sep),np.size(score,0)))
@@ -834,17 +852,20 @@ for n in np.arange(np.size(good_list_sep,0)):
     norm_score = np.mean(Model_score, 1)
     norm_score[norm_score < weight_thresh] = 0
     norm_score = ndimage.gaussian_filter(norm_score,1)
-    norm_score[norm_score > 0] = 1 
-    if np.max(norm_score)>0:
-        norm_score = norm_score/(np.max(norm_score)+weight_thresh)
-    else:
-        norm_score = 0    
+    # norm_score[norm_score > 0] = 1 
+    # if np.max(norm_score)>0:
+    #     norm_score = norm_score/(np.max(norm_score)+weight_thresh)
+    # else:
+    #     norm_score = 0    
     
     # if good_listR[n] == True:
-    conv = Model_coef*norm_score
+    # conv = Model_coef*norm_score
     # else: 
         # conv = Model_coef*0
-    
+    if np.mean(norm_score*norm_score*1e4) > weight_thresh*1e2:
+        conv = Model_coef
+    else:
+        conv = Model_coef*0
     
     # norm_score_all[n,:] = norm_score.T
     for b_ind in np.arange(np.size(Model_coef, 0)):
@@ -870,8 +891,9 @@ e_lines = e_lines+500
 
 weight = {}
 p = {}
-p[-1] = np.arange(120,160)
-p[-2] = np.arange(120,160)
+p[-1] = np.arange(140,160)
+p[-2] = p[-1]
+# p[-2] = np.arange(140,160)
 
     
 for f in np.arange(ax_sz):  
@@ -945,8 +967,8 @@ for f in np.arange(ax_sz):
 # %%
 
 f = 2
-list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
-list3 = (weight[-2,f] < -0.1)# * (weight[-1,f] == 0)
+list2 = (weight[-1,f] > 0.1) #* (weight[-2,f] == 0)
+list3 = (weight[-2,f] > 0.1)# * (weight[-1,f] == 0)
 print(np.sum(list2))
 print(np.sum(list3))
 list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
