@@ -236,25 +236,25 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
                 
     # select analysis and model parameters with c_ind
     
-    if c_ind !=3:
-        if c_ind == 5:
-            Y = Y[0:200,:]
-            X = X[0:200,:]
-            L2 = L2[0:200,:]
-        elif c_ind ==6:
-            Y = Y[D_ppc[n,4][0][0]:,:]
-            X = X[D_ppc[n,4][0][0]:,:]
-            L2 = L2[D_ppc[n,4][0][0]:,:]
-        else:
-    # remove conditioning trials     
-            Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
-            X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
-            L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)          
-    else:
-    # only contain conditioning trials    
-        Y = Y[201:D_ppc[n,4][0][0]]
-        X = X[201:D_ppc[n,4][0][0]]
-        L2 = L2[201:D_ppc[n,4][0][0]]
+    # if c_ind !=3:
+    #     if c_ind == 5:
+    #         Y = Y[0:200,:]
+    #         X = X[0:200,:]
+    #         L2 = L2[0:200,:]
+    #     elif c_ind ==6:
+    #         Y = Y[D_ppc[n,4][0][0]:,:]
+    #         X = X[D_ppc[n,4][0][0]:,:]
+    #         L2 = L2[D_ppc[n,4][0][0]:,:]
+    #     else:
+    # # remove conditioning trials     
+    #         Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
+    #         X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
+    #         L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)          
+    # else:
+    # # only contain conditioning trials    
+    #     Y = Y[201:D_ppc[n,4][0][0]]
+    #     X = X[201:D_ppc[n,4][0][0]]
+    #     L2 = L2[201:D_ppc[n,4][0][0]]
 
     
     # Add reward  history
@@ -313,7 +313,7 @@ for n in good_list:
     m += 1
 
 np.save("Ca_trace",D)
-
+D = np.load("Ca_trace.npy",allow_pickle= True).item()
 # %% 
 xtime = np.arange(160)*50*1e-3-1000*1e-3
 d_list1 = good_list < 179
@@ -342,6 +342,41 @@ for r_ind in [5,6]:
 
 
 
+# %% plotting traces 
+
+
+n = 187
+Yall = D_ppc[n,0][0,:]
+tr2rev = D_ppc[n,4][0][0]
+
+X,Y,L,Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,-2)
+
+Y = Y.T
+TrN = np.size(Y,1)
+# list1 = (X[:,3] == 0) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
+# list2 = (X[:,3] == 1) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
+
+list1 = (X[:,3] == 0) &  (np.arange(TrN) < 200)
+list2 = (X[:,3] == 1) &  (np.arange(TrN) < 200) 
+nList= np.arange(TrN)
+
+
+import matplotlib as mpl
+cmaps =mpl.colormaps['hot']
+
+cmap_list = np.arange(np.sum(list1))/np.sum(list1)
+cmap_list = cmaps(cmap_list)
+
+fig, axes = plt.subplots(1,1, figsize = (10,8))
+t = 0
+for n in nList[list1]:
+# axes.plot(xtime,ndimage.gaussian_filter(Y[:,list1], sigma = (3,0)),c = 'blue')
+    axes.plot(xtime,ndimage.gaussian_filter(Y[:,n], sigma = (3)),c = cmap_list[t,0:3],label=n)
+    t += 1
+
+axes.legend()
+# axes.plot(xtime,ndimage.gaussian_filter(np.mean(Y[:,list1],1), sigma = (3)),c = 'blue')
+# axes.plot(xtime,ndimage.gaussian_filter(np.mean(Y[:,list2],1), sigma = (3)),c = 'red')
 
 
 # %% Run PCA, can separate PPC_AC (d_list2) and PPC_IC (d_list1)

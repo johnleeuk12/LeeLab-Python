@@ -318,22 +318,22 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         Xm[:,m_ind] = 1
         X3 = X3*Xm
 
-        if w*window > prestim + window:
-            X3[:,3] = 0;
+        # if w*window > prestim + window:
+        #     X3[:,3] = 0;
         # adding kernels to each task variable
-        if w*window <= prestim-window:
-            X3[:,0:3] = 0;
-        elif w*window <= prestim+1500-window:
+        # if w*window <= prestim-window:
+        #     X3[:,0:3] = 0;
+        # elif w*window <= prestim+1500-window:
             
-            if ca == 0:
-                X3[:,2]= 0;
-            elif ca == 1:
-                for tr in np.arange(np.size(L,0)):
-                    if np.isnan(Rt[tr,0]):
-                        X3[tr,2] = 0;
-                    else:
-                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
-                            X3[tr,2] = 0;
+        #     if ca == 0:
+        #         X3[:,2]= 0;
+        #     elif ca == 1:
+        #         for tr in np.arange(np.size(L,0)):
+        #             if np.isnan(Rt[tr,0]):
+        #                 X3[tr,2] = 0;
+        #             else:
+        #                 if w*window <= prestim + Rt[tr,0]*1e3 -window:
+        #                     X3[tr,2] = 0;
                         
         
         
@@ -584,7 +584,8 @@ weight_thresh = 2*1e-2
 #     t = 0 
 #     good_list2 = [];
     # good_list3[c_ind] =[];
-for n in good_list:
+# good_list = np.arange(np.size(D_ppc,0))
+for n in np.arange(np.size(D_ppc,0)): # good_list:
     for c_ind in c_list:
         n = int(n)
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
@@ -646,7 +647,7 @@ d_list = good_list > 179
 
 d_list3 = good_list <= 179
 
-good_list_sep = good_list[:]
+good_list_sep = good_list[d_list]
 
 Rscore = {}
 for c_ind in c_list:
@@ -654,15 +655,15 @@ for c_ind in c_list:
     
 y_lens = np.arange(160)
 for c_ind in c_list:    
-    for n in np.arange(np.size(good_list,0)):
+    for n in np.arange(np.size(good_list_sep,0)):
         # print(n)
-        nn = good_list[n]
+        nn = good_list_sep[n]
         nn = int(nn)
         maxS = Data[nn,c_ind-1]["maxS"]
         try:
             X = Data[nn,c_ind-1]["X"]
         except:                
-            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(nn, t_period, prestim, window,k,c_ind,ca,maxS,0)
+            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(nn, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[nn,c_ind-1] = {"X" : X,"coef" : Model_Theta, "intercept" : intercept, "score" : score, 'Y' : Y,'Yhat' : Yhat, 'maxS' : maxS}
         
         Y = Data[nn,c_ind-1]["Y"][:,y_lens]
