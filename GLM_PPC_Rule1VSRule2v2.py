@@ -246,7 +246,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     if c_ind ==1 or c_ind ==-1: # Rule 1
         r_ind = np.arange(200)
     elif c_ind ==2 or c_ind ==-2: # Rule 2
-        r_ind = np.arange(200,np.size(X,0))
+        r_ind = np.arange(D_ppc[n,4][0][0],np.size(X,0))
         
     
         
@@ -311,7 +311,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         # X = np.column_stack([X[:,0],l,X[:,2:]])
         # X10 = X[:,0]*-1 +1
         
-        X3 = np.column_stack([l,X])
+        # X3 = np.column_stack([l,X])
+        X3 = X
         # X3 = np.column_stack([X10,X])
         X4  = X3
         Xm = np.zeros_like(X3)
@@ -321,19 +322,19 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         # if w*window > prestim + window:
         #     X3[:,3] = 0;
         # adding kernels to each task variable
-        # if w*window <= prestim-window:
-        #     X3[:,0:3] = 0;
-        # elif w*window <= prestim+1500-window:
+        if w*window <= prestim-window:
+            X3[:,0:2] = 0;
+        elif w*window <= prestim+1500-window:
             
-        #     if ca == 0:
-        #         X3[:,2]= 0;
-        #     elif ca == 1:
-        #         for tr in np.arange(np.size(L,0)):
-        #             if np.isnan(Rt[tr,0]):
-        #                 X3[tr,2] = 0;
-        #             else:
-        #                 if w*window <= prestim + Rt[tr,0]*1e3 -window:
-        #                     X3[tr,2] = 0;
+            if ca == 0:
+                X3[:,1]= 0;
+            elif ca == 1:
+                for tr in np.arange(np.size(L,0)):
+                    if np.isnan(Rt[tr,0]):
+                        X3[tr,1] = 0;
+                    else:
+                        if w*window <= prestim + Rt[tr,0]*1e3 -window:
+                            X3[tr,1] = 0;
                         
         
         
@@ -382,9 +383,12 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
             cmap = ['tab:orange','tab:blue']
             clabels = ["action","stim"]        
         elif c_ind == -1 or c_ind == -2:     # c_ind == -3 or c_ind == -4      
-            cmap = ['tab:orange','tab:blue','tab:red','tab:olive']
-            clabels = ["lick","stim","Reward","history"]
-            lstyles = ['solid','solid','solid','dashed']
+            # cmap = ['tab:orange','tab:blue','tab:red','tab:olive']
+            # clabels = ["lick","stim","Reward","history"]
+            # lstyles = ['solid','solid','solid','dashed']
+            cmap = ['tab:blue','tab:red','tab:orange']
+            clabels = ["stim","Reward","history"]
+            lstyles = ['solid','solid','solid']
             
         x_axis = np.arange(1,t_period,window)
         for c in range(np.size(X3,1)):        
@@ -423,12 +427,12 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,m_ind,fig_on):
         stim_ind2 = X4[:,1] == 0  
         
     
-        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
-                 linewidth = 2.0, color = cmap[2],label = '5 kHz',linestyle = lstyles[2])
-        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
-                 linewidth = 2.0, color = cmap[2],label = '10 kHz',linestyle = lstyles[3])
-        ax1.set_title('Firing rate y')
-        ax1.legend(loc = 'upper right')
+        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
+        #          linewidth = 2.0, color = cmap[2],label = '5 kHz',linestyle = lstyles[2])
+        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
+        #          linewidth = 2.0, color = cmap[2],label = '10 kHz',linestyle = lstyles[3])
+        # ax1.set_title('Firing rate y')
+        # ax1.legend(loc = 'upper right')
     
         
         # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
@@ -494,9 +498,9 @@ def Model_analysis(n,window, window2,Data,c_ind,ana_period):
     return max_ind, best_score, coef, model_mean, score_mean, score_var, score_pool
 
 # %% Build model
-
+Nvar = 3
 def build_model(n, t_period, prestim, window,k,c_ind,ca):
-    for m_ind in [0,1,2,3]:
+    for m_ind in np.arange(Nvar):
         X, Y, Yhat, Model_Theta, score, inter = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind,0)
         Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
         mi, bs, coef,beta_weights,mean_score, var_score,score_pool = Model_analysis(n, window, window2, Data,c_ind,ana_period)
@@ -507,11 +511,11 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
     max_score_pool = DataS[n,c_ind-1,maxS]["score_pool"]
     
     it = 0
-    while it < 4:
+    while it < Nvar:
         p = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         mean_score_pool = np.zeros((np.size(X,1),np.size(max_score_pool,1)))
         if np.any(DataS[n,c_ind-1,np.argmax(S)]["mean_score"] >  DataS[n,c_ind-1,np.argmax(S)]["var_score"]):
-            for m_ind in [0,1,2,3]:
+            for m_ind in np.arange(Nvar):
                 m_ind2 = np.unique(np.append(maxS,m_ind))
                 X, Y, Yhat, Model_Theta, score, inter = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,m_ind2,0)
                 Data[n,c_ind-1] = {"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat}
@@ -532,7 +536,7 @@ def build_model(n, t_period, prestim, window,k,c_ind,ca):
             max_score_pool = DataS[n,c_ind-1,np.argmax(np.max(T,1))]["score_pool"]
             it += 1
         else:
-            it = 4   
+            it = Nvar   
     
     return maxS
 
@@ -573,7 +577,7 @@ Data = {}
 
 # additional code for explained variance comparison
 DataS = {}
-ax_sz = 4
+ax_sz = 3
 S = np.zeros((1,ax_sz))
 ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
@@ -611,7 +615,7 @@ for n in np.arange(np.size(D_ppc,0)): # good_list:
 
 # np.save('R1vsR2Data_norm.npy',Data, allow_pickle = True)
 
-Data = np.load('R1vsR2Data.npy',allow_pickle= True).item()
+# Data = np.load('R1vsR2Data.npy',allow_pickle= True).item()
 # %% testing model weight stuff
 
 fig, axes = plt.subplots(2,2,figsize = (10,8))
@@ -654,7 +658,7 @@ for c_ind in c_list:
     Rscore[c_ind] = np.zeros((ax_sz+1,np.size(good_list)))
     
 y_lens = np.arange(160)
-for c_ind in c_list:    
+for c_ind in [-1]:    
     for n in np.arange(np.size(good_list_sep,0)):
         # print(n)
         nn = good_list_sep[n]

@@ -40,7 +40,7 @@ from os.path import join as pjoin
 # change fname for filename
 
 # fname = 'PPC_GLM_dataset_AllSession_FR_230209.mat'
-fname = 'CaData_all_withlicktime.mat'
+fname = 'CaData_all_withlicktime_correctedv2.mat'
 fdir = 'D:\Python\Data'
 # fname = 'GLM_dataset_220824_new.mat'
 
@@ -345,7 +345,7 @@ for r_ind in [5,6]:
 # %% plotting traces 
 
 
-n = 187
+n = 217
 Yall = D_ppc[n,0][0,:]
 tr2rev = D_ppc[n,4][0][0]
 
@@ -353,31 +353,73 @@ X,Y,L,Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,-2)
 
 Y = Y.T
 TrN = np.size(Y,1)
-# list1 = (X[:,3] == 0) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
-# list2 = (X[:,3] == 1) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
+list1 = (X[:,3] == 0) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
+list2 = (X[:,3] == 1) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
 
-list1 = (X[:,3] == 0) &  (np.arange(TrN) < 200)
-list2 = (X[:,3] == 1) &  (np.arange(TrN) < 200) 
+# list1 = (X[:,3] == 0) &  (tr2rev+5< np.arange(TrN)) 
+# list2 = (X[:,3] == 1) &  (tr2rev+5< np.arange(TrN))
+
+# list1 = (X[:,3] == 0) &  (np.arange(TrN) < 200)
+# list2 = (X[:,3] == 1) &  (np.arange(TrN) < 200)
 nList= np.arange(TrN)
 
 
 import matplotlib as mpl
 cmaps =mpl.colormaps['hot']
 
-cmap_list = np.arange(np.sum(list1))/np.sum(list1)
+listp = list2
+
+cmap_list = np.arange(np.sum(listp))/np.sum(listp)
 cmap_list = cmaps(cmap_list)
 
 fig, axes = plt.subplots(1,1, figsize = (10,8))
 t = 0
-for n in nList[list1]:
+for n in nList[listp]:
 # axes.plot(xtime,ndimage.gaussian_filter(Y[:,list1], sigma = (3,0)),c = 'blue')
     axes.plot(xtime,ndimage.gaussian_filter(Y[:,n], sigma = (3)),c = cmap_list[t,0:3],label=n)
     t += 1
+    
+axes.plot(xtime,ndimage.gaussian_filter(np.mean(Y[:,nList[listp]],1), sigma = (3)),c = 'black', linewidth = 4)
 
-axes.legend()
+axes.set_ylim([-1.5,15])
+
+
+
+
+# axes.legend()
 # axes.plot(xtime,ndimage.gaussian_filter(np.mean(Y[:,list1],1), sigma = (3)),c = 'blue')
 # axes.plot(xtime,ndimage.gaussian_filter(np.mean(Y[:,list2],1), sigma = (3)),c = 'red')
 
+
+# %% Average pre-stim activity for history units
+
+h_list = [187, 189, 217, 303, 326, 365, 381, 394, 421, 454, 474, 478, 495,
+       496, 525]
+
+
+H = np.zeros((len(h_list),3))
+tn = 0
+for n in h_list:
+    Yall = D_ppc[n,0][0,:]
+    tr2rev = D_ppc[n,4][0][0]
+
+    X,Y,L,Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,-2)
+
+    Y = Y.T
+    TrN = np.size(Y,1)
+    x = 1
+    list3 = (X[:,3] == x) &  (np.arange(TrN) > 200) & (tr2rev+5> np.arange(TrN))
+
+    list1 = (X[:,3] == x) &  (np.arange(TrN) < 200)
+    list2 = (X[:,3] == x) &  (tr2rev+5< np.arange(TrN))
+    nList= np.arange(TrN)
+    H[tn,0] = np.mean(Y[0:20,nList[list1]],1)
+    H[tn,1] = np.mean(Y[0:20,nList[list3]])
+    H[tn,2] = np.mean(Y[0:20,nList[list2]])
+
+    tn += 1
+
+    
 
 # %% Run PCA, can separate PPC_AC (d_list2) and PPC_IC (d_list1)
 f = 0
