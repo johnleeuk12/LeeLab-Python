@@ -71,7 +71,7 @@ from numba import jit, cuda
 # %% File name and directory
 
 # change fname for filename
-fname = 'CaData_all_withlicktime_correctedv2.mat'
+fname = 'CaData_all_CS.mat'
 fdir = 'D:\Python\Data'
 
 
@@ -80,11 +80,6 @@ fdir = 'D:\Python\Data'
 
 
 np.seterr(divide = 'ignore') 
-def load_matfile(dataname = pjoin(fdir,fname)):
-    
-    MATfile = loadmat(dataname)
-    D_ppc = MATfile['GLM_dataset']
-    return D_ppc 
 
 def load_matfile_Ca(dataname = pjoin(fdir,fname)):
     
@@ -93,18 +88,6 @@ def load_matfile_Ca(dataname = pjoin(fdir,fname)):
     return D_ppc 
 
 
-def find_good_data():
-    D_ppc = load_matfile()
-    good_list = []
-    for n in range(np.size(D_ppc,0)):
-        S_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
-        for sp in np.array(D_ppc[n,0]):
-            if sp < np.size(S_all,1):
-                S_all[0,sp[0]-1] = 1  #spike time starts at 1 but indexing starts at 0
-                
-        if np.mean(S_all)*1e3>1:
-            good_list = np.concatenate((good_list,[n]))
-    return good_list
 
 
 def find_good_data_Ca(t_period):
@@ -131,87 +114,8 @@ def find_good_data_Ca(t_period):
 
 
 
-@jit(target_backend='cuda')                         
-def import_data_w_spikes(n,prestim,t_period,window,c_ind):
-    D_ppc = load_matfile()
-    S_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
-    L_all = np.zeros((1,max(D_ppc[n,2][:,0])+t_period+100))
-    N_trial = np.size(D_ppc[n,2],0)
-    
-    # extracting spikes from data
-    for sp in np.array(D_ppc[n,0]):
-        if sp < np.size(S_all,1):
-            S_all[0,sp[0]-1] = 1  #spike time starts at 1 but indexing starts at 0
-                
-    
-    S = np.zeros((N_trial,t_period))
-    S_pre = np.zeros((N_trial,prestim))
-    for tr in range(N_trial):
-        S[tr,:] = S_all[0,D_ppc[n,2][tr,0]-1:D_ppc[n,2][tr,0]+t_period-1]
-        S_pre[tr,:] = S_all[0,D_ppc[n,2][tr,0]-prestim-1:D_ppc[n,2][tr,0]-1]
-    
-    # extracting spikes, end
-    
-    # extracting licks, the same way
-    for l in np.array(D_ppc[n,1]):
-        if l < np.size(L_all,1):
-            L_all[0,l[0]-1] = 1 
-    
-    L = np.zeros((N_trial,t_period+prestim))
-    for tr in range(N_trial):
-        L[tr,:] = L_all[0,D_ppc[n,2][tr,0]-prestim-1:D_ppc[n,2][tr,0]+t_period-1]
-    
-    
-    X = D_ppc[n,2][:,2:6] # task variables
-    Y = [];
-    Y2 = [];
-    S = np.concatenate((S_pre,S),1)
-    t_period = t_period+prestim
-    
-    
-    if c_ind !=3:
-    # remove conditioning trials     
-        S = np.concatenate((S[0:200,:],S[D_ppc[n,5][0][0]:,:]),0)
-        X = np.concatenate((X[0:200,:],X[D_ppc[n,5][0][0]:,:]),0)
-        L = np.concatenate((L[0:200,:],L[D_ppc[n,5][0][0]:,:]),0)
+# @jit(target_backend='cuda')                         
 
-    # only contain conditioningt trials
-    else:
-        S = S[201:D_ppc[n,5][0][0]]
-        X = X[201:D_ppc[n,5][0][0]]
-
-
-    N_trial2 = np.size(S,0)
-
-    # select analysis and model parameters with c_ind    
-    
-    if c_ind == -1:                
-        # Adding previous trial correct vs wrong
-        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]
-        X = np.concatenate((X,Xpre),1)
-        X2 = X
-    elif c_ind ==-2:
-        Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
-        Xpre = Xpre[:,None]       
-        X2 = np.column_stack([X[:,0],X[:,3],
-                             X[:,2]*X[:,1],Xpre])  
-    
-    
-    
-    L2 = []
-    for w in range(int(t_period/window)):
-        l = np.sum(L[:,range(window*w,window*(w+1))],1)
-        L2 = np.concatenate((L2,l))
-        y = np.mean(S[:,range(window*w,window*(w+1))],1)*1e3
-        y2 = np.sum(S[:,range(window*w,window*(w+1))],1)
-        Y = np.concatenate((Y,y))
-        Y2 = np.concatenate((Y2,y2))
-        
-    Y = np.reshape(Y,(int(t_period/window),N_trial2)).T
-    Y2 = np.reshape(Y2,(int(t_period/window),N_trial2)).T
-    L2 = np.reshape(L2,(int(t_period/window),N_trial2)).T
-    return X2, Y, Y2, L2
 
 def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr):    
     
@@ -277,62 +181,24 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr):
 
                 
     # select analysis and model parameters with c_ind
-    
-    if c_ind != 3:             
-    # remove conditioning trials 
-        Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
-        X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
-        L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)
+    if ttr == 0 :
+        c1 = 0
+        c2 = 150
+    elif ttr == 1: 
+        c1  = 200
+        c2 = 250
+    elif ttr ==2:
+        c1 =  np.size(X,0)-200
+        c2 = c1+ 150
     else:
-    # only contain conditioning trials    
-        # Y = Y[201:D_ppc[n,4][0][0]]
-        # X = X[201:D_ppc[n,4][0][0]]
-        # L2 = L2[201:D_ppc[n,4][0][0]]
-        # Y = Y[201:250]
-        # X = X[201:250]
-        # L2 = L2[201:250]
-        # if ttr == 0:
-        #     c1 = 0
-        #     c2 = 150
-        # elif ttr == 1:
-        #     c1 = 200
-        #     c2 = 250
-        # else:
-        #     c1 = 200+(ttr-2)*25
-        #     c2 = c1 +50
-            
-        # if ttr < 5:            
-        #     c1 = ttr*50
-        #     c2 = c1 +50
-        # else:
-        #     if np.size(X,0)-400 >50:                
-        #         c1  = np.size(X,0)-200+(ttr-5)*50
-        #     else:
-        #         c1 = 250 + (ttr-5)*50
-        #     if ttr == 8:
-        #         c2 = np.size(X,0)
-        #     else:
-        #         c2 = c1+50
-        #     c1 = c1+25
-        #     c2 = c2+25
-        
-        if ttr < 4:            
-            c1 = ttr*50
-            c2 = c1 +50
-        else:
-            c1  = np.size(X,0)-200+(ttr-4)*50
-            c2 = c1+ 50
-            if ttr == 7:
-                c2 = np.size(X,0)
-            else:
-                c2 = c1+50
-            # c1 = c1+25
-            # c2 = c2+25
+        c1 = D_ppc[n,4][0][0]-15
+        c2 = D_ppc[n,4][0][0]+15
+
             
         
-        Y = Y[c1:c2]
-        X = X[c1:c2]
-        L2 = L2[c1:c2]
+    Y = Y[c1:c2]
+    X = X[c1:c2]
+    L2 = L2[c1:c2]
 
     
     # Add reward  history
@@ -363,8 +229,8 @@ Each column of X contains the following information:
 
 
 
-t_period = 6000
-prestim = 2000
+t_period = 7000
+prestim = 1000
 
 window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
 window2 = 500
@@ -376,9 +242,241 @@ c_list = [3]
 
 
 
-if ca ==0:
-    D_ppc = load_matfile()
-    # good_list = find_good_data()
-else:
-    D_ppc = load_matfile_Ca()
-    good_list = find_good_data_Ca(t_period)
+D_ppc = load_matfile_Ca()
+good_list = find_good_data_Ca(t_period)
+
+
+# %% get neural data
+
+lenx = 160 # Length of data, 8000ms, with a 50 ms window.
+# good_list = np.arange(336)
+D_all = np.zeros((len(good_list),lenx))
+D = {}
+trmax = 4
+
+for tr in np.arange(trmax):
+    D[0,tr] = np.zeros((len(good_list),lenx))
+    D[1,tr] = np.zeros((len(good_list),lenx))
+
+
+c_ind = 3
+Y = {}
+Ygo = {}
+for tr in np.arange(trmax):
+    print(tr)
+    m = 0
+    for n in good_list: 
+        Ygo[m] = []
+        n = int(n)
+        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,tr)
+        # D_all[m,:] = np.mean(Y,0)/(np.max(np.mean(Y,0)) + 0.5) # Soft normalisation, alpha = 0.5
+        if tr == 3:
+            Ygo[m] = Y[X[:,0] == 1,:]/(np.max(np.mean(Y,0)) + 0.5)
+        D[0,tr][m,:] = np.mean(Y[X[:,0] == 0,:],0)/(np.max(np.mean(Y,0)) + 0.5)
+        D[1,tr][m,:] = np.mean(Y[X[:,0] == 1,:],0)/(np.max(np.mean(Y,0)) + 0.5)
+        m += 1
+
+# %% Transform Ygo
+
+Yraw = np.zeros((336,14,160))
+
+for n in np.arange(336):
+    Yraw[n,:,:] = Ygo[n][0:14,:]-np.median(Ygo[n][0:14,0:20])
+
+for tr in np.arange(trmax):
+    T = np.median(D[1,tr][:,0:20],1)
+    D[1,tr] = D[1,tr]-T.reshape(336,1)
+
+
+# %% PCA on individual groups
+
+pca = {}
+max_k = 25;
+d_list = good_list > 118
+d_list3 = good_list <= 118
+
+
+d_list2 = d_list
+# fig, axs = plt.subplots(trmax,6,figsize = (20,30))
+
+sm = 4
+
+for g in np.arange(trmax):
+    pca[g] = PCA(n_components=max_k)
+    R = ndimage.gaussian_filter(D[1,g][d_list2,:].T,[sm,0])
+    test = pca[g].fit_transform(ndimage.gaussian_filter(R,[1,0]))        
+    test = test.T
+    # for t in range(0,5):
+    #     axs[g,t].plot(test[t,:])
+    # axs[g,5].plot(np.cumsum(pca[g].explained_variance_ratio_))
+
+
+n_cv = 20   
+
+
+Overlap = np.zeros((trmax,trmax,n_cv)); # PPC_IC
+
+# O_mean = {}
+# O_std = {}
+# O_mean[0] = np.zeros((ax_sz,ax_sz));
+# O_std[0] = np.zeros((ax_sz,ax_sz));
+# O_mean[1] = np.zeros((ax_sz,ax_sz));
+# O_std[1] = np.zeros((ax_sz,ax_sz));
+
+
+# n_list = {};
+# n_list[0] = np.arange(95)
+# n_list[1] = np.arange(95,len(good_list))
+
+k1 = 0
+k2 = 19
+
+fig, axes = plt.subplots(1,1,figsize = (10,10))
+for g1 in np.arange(trmax):
+   for g2 in np.arange(trmax):
+       S_value = np.zeros((1,20))
+       for d in np.arange(0,20):
+           S_value[0,d] = np.abs(np.dot(pca[g1].components_[d,:], pca[g2].components_[d,:].T))
+           S_value[0,d] = S_value[0,d]/(np.linalg.norm(pca[g1].components_[d,:])*np.linalg.norm(pca[g2].components_[d,:]))
+            
+       Overlap[g1,g2,0] = np.max(S_value)
+
+
+
+imshowobj = axes.imshow(Overlap[:,:,0],cmap = "hot_r")
+imshowobj.set_clim(0.1, 1) #correct
+plt.colorbar(imshowobj) #adjusts scale to value range, looks OK
+    
+# %% draw trajectories
+
+
+from mpl_toolkits import mplot3d
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from mpl_toolkits.mplot3d.art3d import Line3DCollection, Line3D
+from matplotlib import cm
+    
+def draw_traj(traj,f,v,trmax,sc):
+    fig = plt.figure(figsize = (10,10))
+    ax = plt.axes(projection='3d')
+    # styles = ['solid', 'dotted', 'solid','dotted']
+    # cmap_names = ['autumn','autumn','winter','winter']
+    styles = ['solid','solid','dotted']
+    cmap_names = ['autumn','winter','winter']
+    for tr in np.arange(trmax):
+        x = traj[f][tr][:,0]
+        y = traj[f][tr][:,1]
+        z = traj[f][tr][:,2]
+        
+        x = ndimage.gaussian_filter(x,1)
+        y = ndimage.gaussian_filter(y,1)
+        z = ndimage.gaussian_filter(z,1)            
+            
+        time = np.arange(len(x))
+        points = np.array([x, y, z]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    
+        
+    
+        
+        # norm = plt.Normalize(time.min(), time.max())
+        # cmap=plt.get_cmap(cmap_names[tr])
+        # colors=[cmap(float(ii)/(n-1)) for ii in range(np.size(segments,0))]
+        colors = cm.copper(np.linspace(0,1,trmax))
+        
+        # norm = BoundaryNorm([0,19,29,49,89,109],cmap.N)
+        # lc = Line3DCollection(segments, cmap=cmap_names[tr], norm=norm,linestyle = styles[tr])
+        lc = Line3DCollection(segments, color = colors[tr])#linestyle = styles[tr])
+        # lc = Line3D(x,y,z, markevery = [0,19,29,49,89,109], color = colors[tr])#linestyle = styles[tr])
+        if tr ==0:
+            lc = Line3DCollection(segments, color = "red", linestyle = 'dotted')
+        elif tr == 1:
+            lc = Line3DCollection(segments, color = "black", linestyle = 'solid')
+
+        lc.set_array(time)
+        lc.set_linewidth(2)
+        ax.add_collection3d(lc)
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        ax.set_zlabel('PC3')
+        
+        
+        for m in [0]:
+            ax.scatter(x[m], y[m], z[m], marker='o', color = "black")
+        if tr == trmax:
+            ax.auto_scale_xyz(x,y,z)
+    if v ==1:
+        for n in range(0, 100):
+            if n >= 20 and n<50:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+4.0 #pan down faster 
+            if n >= 50 and n<80:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+2.0 #pan down faster 
+                ax.azim = ax.azim+4.0
+            # if n >= 20 and n <= 22: 
+            #     ax.set_xlabel('')
+            #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
+            #     ax.elev = ax.elev-2 #start by panning down slowly 
+            # if n >= 23 and n <= 36: 
+            #     ax.elev = ax.elev-1.0 #pan down faster 
+            # if n >= 37 and n <= 60: 
+            #     ax.elev = ax.elev-1.5 
+            #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
+            # if n >= 61 and n <= 64: 
+            #     ax.elev = ax.elev-1.0 
+            #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
+            # if n >= 65 and n <= 73: 
+            #     ax.elev = ax.elev-0.5 
+            #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
+            # if n >= 74 and n <= 76:
+            #     ax.elev = ax.elev-0.2
+            #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
+            if n >= 80: #add axis labels at the end, when the plot isn't moving around
+                ax.set_xlabel('PC1')
+                ax.set_ylabel('PC2')
+                ax.set_zlabel('PC3')
+            # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
+            plt.savefig('Images/img' + str(n).zfill(3) + '.png',
+                        bbox_inches='tight')
+
+
+
+# %% trajectories
+
+traj = {};
+
+sm = 10
+t1 = 0
+t2 = 100
+g = 0
+
+R1 = ndimage.gaussian_filter(D[1,0][d_list2,t1:t2].T,[sm,0])
+R2 = ndimage.gaussian_filter(D[1,1][d_list2,t1:t2].T,[sm,0])
+traj[0] = {}
+traj[0][0] = np.dot(R1,pca[g].components_.T)  
+traj[0][1] = np.dot(R2,pca[g].components_.T)
+
+for tr in np.arange(14):
+    Rtr = ndimage.gaussian_filter(Yraw[d_list2,tr,t1:t2].T,[sm,0])
+    traj[0][tr+2] = np.dot(Rtr,pca[g].components_.T)  
+
+
+
+
+draw_traj(traj,0,0,16,0)
+
+
+
+
+
+
+
+
+
+
+
+
+

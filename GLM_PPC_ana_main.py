@@ -44,7 +44,7 @@ from sklearn.linear_model import TweedieRegressor, Ridge, ElasticNet, Lasso
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import ShuffleSplit
 from sklearn.decomposition import PCA, SparsePCA
-
+import seaborn as sns
 from os.path import join as pjoin
 from numba import jit, cuda
 
@@ -57,8 +57,7 @@ from numba import jit, cuda
 # %% File name and directory
 
 # change fname for filename
-fname = 'CaData_all_CS.mat'
-# fname = 'CaData_all_withlicktime_correctedv2.mat'
+fname = 'CaData_all_all_session_v2_corrected.mat'
 
 fdir = 'D:\Python\Data'
 
@@ -229,7 +228,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
 
     X = D_ppc[n,2][:,2:6] # task variables
-    Rt =  D_ppc[n,5] # reward time relative to stim onset, in seconds
+    Rt =  D_ppc[n,6] # reward time relative to stim onset, in seconds
     t_period = t_period+prestim
     
     # re-formatting Ca traces
@@ -266,12 +265,12 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
                 
     # select analysis and model parameters with c_ind
     
-    if c_ind != 3:             
+    if c_ind == 0:             
     # remove conditioning trials 
         Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
         X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
         L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)
-    else:
+    elif c_ind == 3:
     # only contain conditioning trials    
         # Y = Y[201:D_ppc[n,4][0][0]]
         # X = X[201:D_ppc[n,4][0][0]]
@@ -279,11 +278,22 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
         # Y = Y[201:250]
         # X = X[201:250]
         # L2 = L2[201:250]
-        c1 = D_ppc[n,4][0][0] - 25
-        c2 = D_ppc[n,4][0][0] + 25
+        c1 = 200
+        c2 = D_ppc[n,4][0][0] + 15
         Y = Y[c1:c2]
         X = X[c1:c2]
         L2 = L2[c1:c2]
+    elif c_ind == 1:
+        c1 = 0
+        c2 = 200
+        Y = Y[c1:c2]
+        X = X[c1:c2]
+        L2 = L2[c1:c2]
+    elif c_ind == 2:
+        Y = Y[D_ppc[n,4][0][0]:,:]
+        X = X[D_ppc[n,4][0][0]:,:]
+        L2 = L2[D_ppc[n,4][0][0]:,:]
+        
 
     
     # Add reward  history
@@ -295,7 +305,6 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     X2 = np.column_stack([X[:,0],X[:,3],
                           X[:,2]*X[:,1],Xpre]) 
 
-    
 
     
     return X2,Y, L2, Rt
@@ -334,26 +343,26 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         # X = np.column_stack([X[:,0],l,X[:,2:]])
         # X3 = np.column_stack([l,X])
         X3 = X
-        if c_ind == 3:
+        if c_ind == 1 or c_ind == 2 or c_ind ==3:
             X3[:,0] = 0
             
         Xm = np.zeros_like(X3)
         Xm[:,m_ind] = 1
         X3 = X3*Xm
         # adding kernels to each task variable
-        # if w*window <= prestim-window:
-        #     X3[:,0:3] = 0;
-        # elif w*window <= prestim+1500-window:
-            
-        #     if ca == 0:
-        #         X3[:,2]= 0;
-        #     elif ca == 1:
-        #         for tr in np.arange(np.size(L,0)):
-        #             if np.isnan(Rt[tr,0]):
-        #                 X3[tr,2] = 0;
-        #             else:
-        #                 if w*window <= prestim + Rt[tr,0]*1e3 -window:
-        #                     X3[tr,2] = 0;
+        if w*window <= prestim-2*window:
+            X3[:,0:3] = 0;
+        elif w*window <= prestim+1500-2*window:
+            X3[:,2]= 0;
+            # if ca == 0:
+            #     X3[:,2]= 0;
+            # elif ca == 1:
+            #     for tr in np.arange(np.size(L,0)):
+            #         if np.isnan(Rt[tr,0]):
+            #             X3[tr,2] = 0;
+            #         else:
+            #             if w*window <= prestim + Rt[tr,0]*1e3 -window:
+            #                 X3[tr,2] = 0;
                         
         
 
@@ -412,7 +421,7 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         elif c_ind == -1:
             cmap = ['tab:purple', 'tab:orange', 'tab:green','tab:blue','tab:olive']
             clabels = ["contin","action","correct","stim","history"]
-        elif c_ind == -2 or c_ind ==3:
+        elif c_ind == 2 or c_ind ==3 or c_ind == 1:
             cmap = ['tab:purple','tab:blue','tab:red','tab:orange']
             clabels = ["Contingency","stim","reward","history",]
             lstyles = ['solid','solid','solid','solid']
@@ -617,7 +626,7 @@ else:
     
 # %% Run GLM 
 Data = {}
-# Data = np.load('Data_PPCbtween_Ca_07_20.npy',allow_pickle= True).item()
+# Data = np.load('Data_TTR_0914.npy',allow_pickle= True).item()
 # 
 # additional code for explained variance comparison
 DataS = {}
@@ -639,7 +648,7 @@ for c_ind in c_list:
             maxS = build_model(n, t_period, prestim, window, k, c_ind, ca)
             # maxS = Data[n,c_ind-1]["maxS"]
             # maxS = [0,1,2,3]   
-            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,0)
+            X, Y, Yhat, Model_Theta, score, intercept = glm_per_neuron(n, t_period, prestim, window,k,c_ind,ca,maxS,1)
             Data[n,c_ind-1] = {"X":X,"coef" : Model_Theta, "score" : score, 'Y' : Y,'Yhat' : Yhat,'maxS' : maxS, "intercept" : intercept}
             # t += 1
             # print(t,"/",len(good_list))
@@ -652,7 +661,7 @@ for c_ind in c_list:
         except:
             
             print("Error, probably not enough trials") 
-# np.save('Data_PPCR2_Ca_07_20.npy', Data,allow_pickle= True)      
+# np.save('Data_TTR_0914.npy', Data,allow_pickle= True)      
 
 
 # %% testing model weight stuff
@@ -687,13 +696,13 @@ axes[1,1].plot(x_axis,np.mean(yhat3[X[:,2]==0,:],0),c = "tab:red", linestyle = '
 # %% for each weight, get corresponding yhat
 # Calculating R2 per neuron
 # good_list = good_list_int
-# d_list = good_list > 118
-# d_list3 = good_list <= 118
-
 good_list = np.arange(np.size(D_ppc,0))
 d_list = good_list > 179
+# d_list = good_list > 118
 d_list3 = good_list <= 179
+# d_list3 = good_list <= 118
 
+c_ind = 3
 ax_sz = 4
 
 good_list_sep = good_list[d_list3]
@@ -833,13 +842,13 @@ plt.hist(nb_TV)
 
 
 cmap = ['tab:purple','tab:blue','tab:red','tab:orange']
-c_ind = -1
+# c_ind = -1
 
 # d_list = good_list > 118
-# # d_list3 = good_list <= 179
+d_list3 = good_list <= 179
 # d_list3 = good_list <= 118
 
-# d_list3 = good_list > 179
+d_list = good_list > 179
 
 
 def make_RS(d_list):
@@ -862,8 +871,8 @@ def make_RS(d_list):
     Rsstat[c_ind,4] = Rscore[4,d_list]
     
         # axes.boxplot(Rscore[c_ind][4,d_list3],positions= [4+(c_ind+1)*-0.3])
-    axes.set_ylim([-0.05,0.2])
-    # plt.savefig("R2_PPC_AC.svg")
+    axes.set_ylim([-0.05,0.3])
+    plt.savefig("PPC_AC.svg")
 
     return Rsstat
 
@@ -875,20 +884,21 @@ RsStat_PAC = make_RS(d_list)
 
 bins = np.arange(0,0.25,0.0025)
 fig, axes = plt.subplots(1,1,figsize = (5,5))
-axes.hist(RsStat_PAC[-1,4], bins , alpha=0.7, rwidth=1)
-axes.hist(RsStat_PIC[-1,4], bins , alpha=0.7, rwidth=1)
+axes.hist(RsStat_PAC[c_ind,4], bins , alpha=0.7, rwidth=1)
+axes.hist(RsStat_PIC[c_ind,4], bins , alpha=0.7, rwidth=1)
 
 # np.mean((RsStat_PIC[-1,4]))
 # 
 
 # stats.ks_2samp(RsStat_PAC[-1,4],RsStat_PAC2[-1,4])
-# plt.savefig("Rscore_hist.svg")
+plt.savefig("Rscore_hist.svg")
 # 
 
 
 good_listR = Rscore[4,:] > 0.02
-# good_listR[12] = False
-# good_listR[67] = False
+good_listR[66] = False
+good_listR[149] = False
+good_listR[7] = False
 
 good_listRu = good_list[good_listR]
 
@@ -986,34 +996,33 @@ good_listRu = good_list[good_listR]
 
 
 # %% Normalized population average of task variable weights
-
-# d_list = good_list > 118
-# # d_list3 = good_list <= 179
-# d_list3 = good_list <= 118
-# good_list_sep = np.arange(600)
-# good_list_sep = good_list
-# good_list_sep = np.arange(336)
 c_ind = 3
+d_list = good_list > 179
+# d_list3 = good_list <= 179
+d_list3 = good_list <= 179
+# good_list_sep = np.arange(600)
+# good_list_sep = np.arange(336)
+# c_ind = 2
 # good_list2 = good_list[d_list & good_listR]
 
 # cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
 
 # good_list_sep = good_list[cat_list]
-# good_list_sep = good_list[d_list & good_listR]
+# good_list_sep = good_list[d_list3]
 good_list_sep = good_listRu[:]
 
 
 
-weight_thresh = 4*1e-2
+weight_thresh = 5*1e-2
 
 
-if c_ind == 3 or c_ind == -2:
-    cmap3 = ['tab:purple','tab:blue','tab:red','tab:olive']
-    ax_sz = len(cmap3)
+# if c_ind == 3 or c_ind == -2:
+cmap3 = ['tab:purple','tab:blue','tab:red','tab:olive']
+ax_sz = len(cmap3)
     # cmap3 = [,'tab:blue','tab:red','tab:olive']
     # ax_sz = len(cmap3)
-    clabels = ["lick","Contingency","stim","reward","history"]
-    lstyles = ['solid','solid','solid','solid','solid']
+clabels = ["lick","Contingency","stim","reward","history"]
+lstyles = ['solid','solid','solid','solid','solid']
     
 
 score = np.zeros((160,1))
@@ -1081,17 +1090,17 @@ e_lines = e_lines+500
 
 weight = {}
 p = {}
-p[-1] = np.arange(50,100)
-# p[-1] = np.arange(140,160)
+# p[-1] = np.arange(70,100)
+p[-1] = np.arange(0,30)
 
 p[-2] = p[-1]
 # p[-2] = np.arange(0,15)
 
 Lg = len(good_listRu)
-Lg = 256
-Lac = np.sum(d_list)
-Lic = np.sum(d_list3)    
-Lic = 91 
+# Lg = 256
+# Lac = np.sum(d_list)
+# Lic = np.sum(d_list3)    
+Lic = 106 
 for f in np.arange(ax_sz):  
     weight[-1,f]= np.zeros((1,Lg))
     weight[-2,f] = np.zeros((1,Lg))    
@@ -1108,20 +1117,20 @@ for f in np.arange(ax_sz):
 # axes.scatter(weight[-1,2],-weight[-2,2])
 # axes.set_xlim([-0.5,0.5])
 # axes.set_ylim([-0.5,0.5])
+# weightr2hist = weight
 
 # %% Comparing weights between two time periods
 weight = {}
 p = {}
-# Lg = 256
-Lic = 91 
-Lg = len(good_listRu)
-Lic = 147
+Lg = 488 # 532
+# Lg = len(good_listRu)
+Lic = 122 # 129 
 # d_list = good_list > 118
 # d_list3 = good_list <= 179
-d_list3 = good_list <= 118
+# d_list3 = good_list <= 118
 # Lg = 600
-p[0] = np.arange(0,30)
-p[1] = np.arange(130,160)
+p[0] = np.arange(40,70)
+p[1] = np.arange(0,30)
 
 for f in np.arange(ax_sz):
     for z in [0,1]:
@@ -1131,10 +1140,11 @@ for f in np.arange(ax_sz):
             
 
 
-f =3
+f1 = 3
+f2 = 3
 fig, axes = plt.subplots(1,1,figsize = (7,7))
-# axes.scatter(weight[0,f][0,Lic:Lg],weight[1,1][0,Lic:Lg], c = "blue")
-axes.scatter(weight[0,f][0,0:Lic],weight[1,f][0,0:Lic], c = "red")
+# axes.scatter(weight[0,f1][0,Lic:Lg],weight[1,f2][0,Lic:Lg], c = "blue")
+axes.scatter(weight[0,f1][0,0:Lic],weight[1,f2][0,0:Lic], c = "red")
 axes.vlines([-0.1, 0.1],-1,1,color = "black", linestyles = "dotted")
 axes.hlines([-0.1, 0.1],-1,1,color = "black", linestyles = "dotted")
 
@@ -1144,11 +1154,20 @@ for label in (axes.get_xticklabels() + axes.get_yticklabels()):
 	label.set_fontsize(16)
     
     
-    
-# list2 = (weight[0,3][0,d_list3] < -0.1)
-# list3=  (weight[1,0][0,d_list3] < -0.1)
-# print(np.sum(list2))    
-# print(np.sum(list3))
+
+
+rg = np.arange(Lic,Lg)
+# rg = np.arange(Lic)
+th = 0.1
+  
+list2 = (np.abs(weight[0,f1][0,rg]) > th) * (np.abs(weight[1,f2][0,rg]) > th)
+list3=  np.logical_or(np.abs(weight[0,f1][0,rg]) > th,np.abs(weight[1,f2][0,rg]) > th)
+# list4 = (np.abs(weight[0,f1][0,rg]) < th) * (np.abs(weight[1,f2][0,rg]) < th)
+print(np.sum(list2))    
+print(np.sum(list3))
+print(np.sum(list4))
+# good_listRu[list2]
+
 
 # print(np.sum(list3*list2))
 
@@ -1169,17 +1188,17 @@ W4 = weight[1,f][0,Lic:Lg]
 # W4a = W3[(W3!=0)*(W4!=0)]
 
 
-W1a = W1[(W1>0.1)]
-W2a = W1[(W1<-0.1)]
+# W1a = W1[(W1>0.1)]
+# W2a = W1[(W1<-0.1)]
 
-W3a = W3[(W3>0.1)]
-W4a = W3[(W3<-0.1)]
+# W3a = W3[(W3>0.1)]
+# W4a = W3[(W3<-0.1)]
 
 
-# W1a = np.abs(W1a)
-# W2a = np.abs(W2a)
-# W3a = np.abs(W3a)
-# W4a = np.abs(W4a)
+W1a = np.abs(W1a)
+W2a = np.abs(W2a)
+W3a = np.abs(W3a)
+W4a = np.abs(W4a)
 
 import seaborn as sns
 
@@ -1210,6 +1229,8 @@ axes.set_ylim([0,50])
 # %%
 
 
+
+
 f = 1
 list2 = (np.abs(weight[-1,f]) > 0.1) #* (weight[-2,f] == 0)
 list3 = (np.abs(weight[-2,f]) > 0.1) #* (weight[-2,f] == 0)
@@ -1227,10 +1248,23 @@ stats.ks_2samp(C1,C2)
 
 # %%
 
-f = 1
-list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
-list3 = (weight[-2,f] < -0.1) #* (weight[-2,f] == 0)
-    
+f =2
+list2 = (weight[-1,f] < -0.1)# or (weight[-2,f] < -0.1)
+list3 = (weight[-2,f] < -0.1)# or (weight[-2,f] < -0.1)
+
+# list2 = (np.abs(weight[-1,f]) > 0.1)
+# list3 = (np.abs(weight[-2,f]) > 0.1)
+
+# fig, ax = plt.subplots(1,1,figsize = (7,7))
+# ax = sns.swarmplot(data=(np.abs(weight[-2,f][0,list3[0]]),np.abs(weight[-1,f][0,list2[0]])), palette=["red","blue"])
+# ax = sns.pointplot(data=(np.abs(weight[-2,f][0,list3[0]]),np.abs(weight[-1,f][0,list2[0]])), color = "black")
+
+
+# stats.ks_2samp(np.abs(weight[-1,f][0,list2[0]]),np.abs(weight[-2,f][0,list3[0]]))
+
+# list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
+# list3 = (weight[-2,f] < -0.1) #* (weight[-2,f] == 0)
+
 
 # list3 = (weight[-2,f] < -0.1)# * (weight[-1,f] == 0)
 ll = good_list_sep[list3[0]]
@@ -1248,15 +1282,23 @@ list4 = (weight[-1,f] > 0)*(-weight[-2,f] > 0)
 # 
 fig, axes = plt.subplots(1,1,figsize = (7,4))
 
-f = 3
+# f = 3
 # y1 = np.mean(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)
 # s1 = np.std(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)/np.sqrt(np.sum(list2)+np.sum(list3))
 
-for f in [1]:
+for f in [2]:
     C1 = Convdata[f][list2[0,:],:]
-    # C1 = C1[np.max(np.abs(C1),1)>0,:]
+    # C1 = np.abs(C1)
+    
+    C1 = C1[np.max(np.abs(C1),1)>0,:]
     C2 = Convdata[f][list3[0,:],:]
-    # C2 = C2[np.max(np.abs(C2),1)>0,:]
+    # C2 = np.abs(C2)
+    C2 = C2[np.max(np.abs(C2),1)>0,:]
+    # if f == 1:
+    #     C1 = -C1
+    #     C2 = -C2
+        
+        
     y1 = np.mean(C1,0)
     y2 = np.mean(C2,0)
     s1 = np.std(C1,0)/np.sqrt(np.size(C1,0))
@@ -1287,11 +1329,84 @@ for f in [1]:
     
     axes.plot(x_axis*1e-3-prestim*1e-3,y2,c = cmap[f],linestyle = 'dashed')
     axes.fill_between(x_axis*1e-3-prestim*1e-3,y2-s2,y2+s2,facecolor = cmap[f],alpha = 0.3)
+    
+    # axes.set_ylim([-0.05, 0.6])
+plt.savefig("Rew_post.svg")
 
 
 
+# %% plotting weights by peak order
+
+f = 2
+list0 = (np.mean(Convdata[f],1) != 0)
+# list0[Lic:Lg] = False # PPCIC
+list0[0:Lic] = False # PPCAC
+
+W = ndimage.uniform_filter(Convdata[f][list0,:],[0,5], mode = "mirror")
+
+max_peak = np.argmax(np.abs(W),1)
+max_ind = max_peak.argsort()
+
+list1 = []
+list2 = []
+
+for m in np.arange(np.size(W,0)):
+    n = max_ind[m]
+    if W[n,max_peak[n]] > 0.1:
+        list1.append(m)
+    elif W[n,max_peak[n]] <-0.1:
+        list2.append(m)
+        
+max_ind1 = max_ind[list1]  
+max_ind2 = max_ind[list2]     
+   
+W1 = W[max_ind1]
+W2 = W[max_ind2]    
+
+W3 = np.concatenate((W1,W2), axis = 0)
+fig, axes = plt.subplots(1,1,figsize = (10,10))
+
+clim = [-0.4, 0.4]
+im1 = axes.imshow(W3, clim = clim, aspect = "auto", interpolation = "None",cmap = "viridis")
+# im2 = axes[1].imshow(W2, clim = clim, aspect = "auto", interpolation = "None")
+
+fig.subplots_adjust(right=0.85)
+cbar_ax = fig.add_axes([0.88, 0.15, 0.04, 0.7])
+fig.colorbar(im1, cax=cbar_ax)
+
+# %%bar plot 
+cmap3 = ['tab:blue','tab:red','tab:olive']
+b2 = [187, 115, 268]
+b2 = np.array(b2)/403
+
+b1 = [43, 37, 71]
+b1 = np.array(b1)/129
 
 
+fig, axes = plt.subplots(1,1,figsize = (10,8))
+axes.bar(np.arange(3)*2,b1, color = cmap3, alpha = 0.5, width = 0.5)
+axes.bar(np.arange(3)*2+0.7,b2, color = cmap3, alpha = 1, width = 0.5)
+axes.set_ylim([0,0.8])
+
+
+# %%
+fig, axes = plt.subplots(1,1,figsize = (8,8))
+
+
+
+sns.set(style="whitegrid")
+tips = sns.load_dataset("tips")
+fig, ax = plt.subplots(1,1,figsize = (7,7))
+
+# ax = sns.boxplot(data=(W1a,W3a,W2a,W4a), showfliers = False)
+ax = sns.stripplot(data=(max_peak1, max_peak2), palette=["red","blue"])
+# ax = sns.pointplot(data=(W1a,W 3a,W2a,W4a), color="black", join = False)
+
+# ax.set_ylim([-0.9,0.9])
+
+plt.show()
+
+stats.ks_2samp(max_peak1, max_peak2)
 
 
 # %% calculate number of positive vs negative weights per time period. 
@@ -1303,15 +1418,18 @@ pe21 = []
 pe22 = []
 pe31 = []
 pe32 = []
+
+f = 3
+
 for w in np.arange(15)*10:
     p[-1] = np.arange(w,w+20)
     
     p[-2] = p[-1]
     # p[-2] = np.arange(0,15)
     
-    Lg = len(good_listRu)
-    Lac = np.sum(d_list)
-    Lic = np.sum(d_list3)     
+    # Lg = len(good_listRu)
+    # Lac = np.sum(d_list)
+    # Lic = np.sum(d_list3)     
     for f in np.arange(ax_sz):  
         weight[-1,f]= np.zeros((1,Lg))
         weight[-2,f] = np.zeros((1,Lg))    
@@ -1324,7 +1442,6 @@ for w in np.arange(15)*10:
                     weight[c_ind,f][0,n] = np.mean(Convdata[f][n,p[c_ind]])
     
     
-    f = 2
     list21 = (weight[-1,f] > 0.1) #* (weight[-2,f] == 0)
     list22 = (weight[-1,f] < -0.1)
     
@@ -1337,13 +1454,16 @@ for w in np.arange(15)*10:
     pe32.append(np.sum(list32))
 
 
-index = np.linspace(-0.5,6.5,15)
+index = np.linspace(-1.5,5.5,15)
 
 fig, axes = plt.subplots(figsize=(5,5), ncols=2, sharey=True)
 fig.tight_layout()
 
-axes[1].barh(index, np.array(pe21)/156, align='center', color=cmap[f],height = 0.3)
-axes[0].barh(index, -np.array(pe22)/156, align='center', color=cmap[f],height = 0.3,alpha = 0.7)
+# Lic = 129
+# Lac = 532-129
+
+axes[1].barh(index, np.array(pe21)/Lac, align='center', color=cmap[f],height = 0.3)
+axes[0].barh(index, -np.array(pe22)/Lac, align='center', color=cmap[f],height = 0.3,alpha = 0.7)
 axes[0].set_xlim([-0.3,0])
 axes[1].set_xlim([0,0.3])
 
@@ -1351,8 +1471,12 @@ axes[1].set_xlim([0,0.3])
 fig, axes = plt.subplots(figsize=(5,5), ncols=2, sharey=True)
 fig.tight_layout()
 
-axes[1].barh(index, np.array(pe31)/91, align='center', color=cmap[f],height = 0.3)
-axes[0].barh(index, -np.array(pe32)/91, align='center', color=cmap[f],height = 0.3,alpha = 0.7)
+
+
+
+
+axes[1].barh(index, np.array(pe31)/Lic, align='center', color=cmap[f],height = 0.3)
+axes[0].barh(index, -np.array(pe32)/Lic, align='center', color=cmap[f],height = 0.3,alpha = 0.7)
 axes[0].set_xlim([-0.3,0])
 axes[1].set_xlim([0,0.3])
 # %% 

@@ -64,7 +64,13 @@ from numba import jit, cuda
 # %% File name and directory
 
 # change fname for filename
-fname = 'CaData_all_withlicktime_correctedv2.mat'
+# fname = 'CaData_all_withlicktime_correctedv2.mat'
+
+
+fname = 'CaData_all_all_session_v2_corrected.mat'
+# fname = 'CaData_PIC_2.mat'
+
+
 fdir = 'D:\Python\Data'
 
 
@@ -271,12 +277,20 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr):
                 
     # select analysis and model parameters with c_ind
     
-    if c_ind != 3:             
+    if c_ind ==0:             
     # remove conditioning trials 
         Y = np.concatenate((Y[0:200,:],Y[D_ppc[n,4][0][0]:,:]),0)
         X = np.concatenate((X[0:200,:],X[D_ppc[n,4][0][0]:,:]),0)
         L2 = np.concatenate((L2[0:200,:],L2[D_ppc[n,4][0][0]:,:]),0)
-    else:
+    elif c_ind == 1:        
+        Y = Y[0:200,:]
+        X = X[0:200,:]
+        L2 = L2[0:200,:]
+    elif c_ind ==2:
+        Y = Y[D_ppc[n,4][0][0]:,:]
+        X = X[D_ppc[n,4][0][0]:,:]
+        L2 = L2[D_ppc[n,4][0][0]:,:]
+    elif c_ind ==3:
     # only contain conditioning trials    
         # Y = Y[201:D_ppc[n,4][0][0]]
         # X = X[201:D_ppc[n,4][0][0]]
@@ -308,12 +322,18 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr):
         #         c2 = c1+50
         #     c1 = c1+25
         #     c2 = c2+25
-        
-        if ttr < 4:            
+        if ttr == -1:
+            c1 = 200 
+            c2 = D_ppc[n,4][0][0] +10
+            # c1 = D_ppc[n,4][0][0]-20
+            # c2 = D_ppc[n,4][0][0] +20
+            
+        elif ttr < 4:            
             c1 = ttr*50
             c2 = c1 +50
         else:
-            c1  = np.size(X,0)-200+(ttr-4)*50
+            c1 = D_ppc[n,4][0][0]+(ttr-4)*50
+            # c1  = np.size(X,0)-200+(ttr-4)*50
             c2 = c1+ 50
             if ttr == 7:
                 c2 = np.size(X,0)
@@ -321,6 +341,8 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr):
                 c2 = c1+50
             # c1 = c1+25
             # c2 = c2+25
+            
+            
             
         
         Y = Y[c1:c2]
@@ -380,7 +402,8 @@ else:
 # %% get neural data
 
 lenx = 160 # Length of data, 8000ms, with a 50 ms window.
-# good_list = np.arange(336)
+# good_list = np.arange(726)
+# good_list = np.arange(np.size(D_ppc,0))
 D_all = np.zeros((len(good_list),lenx))
 D = {}
 trmax = 8
@@ -390,34 +413,60 @@ for tr in np.arange(trmax):
     D[1,tr] = np.zeros((len(good_list),lenx))
 
 
+
+D[0,trmax] = np.zeros((len(good_list),lenx))
+D[0,trmax+1] = np.zeros((len(good_list),lenx))
+D[1,trmax] = np.zeros((len(good_list),lenx))
+D[1,trmax+1] = np.zeros((len(good_list),lenx))
 c_ind = 3
 Y = {}
 for tr in np.arange(trmax):
     print(tr)
     m = 0
+    ttr = tr
+    if tr == 4:
+        ttr = -1
+    elif tr >4:
+        ttr = tr-1
+        
     for n in good_list: 
         n = int(n)
-        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,tr)
+        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr)
         # D_all[m,:] = np.mean(Y,0)/(np.max(np.mean(Y,0)) + 0.5) # Soft normalisation, alpha = 0.5
         D[0,tr][m,:] = np.mean(Y[X[:,0] == 0,:],0)/(np.max(np.mean(Y,0)) + 0.5)
         D[1,tr][m,:] = np.mean(Y[X[:,0] == 1,:],0)/(np.max(np.mean(Y,0)) + 0.5)
         m += 1
         
+for c_ind in[1,2]:
+    m = 0
+    for n in good_list: 
+        n = int(n)
+        X, Y, L, Rt = import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind,ttr)
+            # D_all[m,:] = np.mean(Y,0)/(np.max(np.mean(Y,0)) + 0.5) # Soft normalisation, alpha = 0.5
+        D[0,trmax+c_ind-1][m,:] = np.mean(Y[X[:,0] == 0,:],0)/(np.max(np.mean(Y,0)) + 0.5)
+        D[1,trmax+c_ind-1][m,:] = np.mean(Y[X[:,0] == 1,:],0)/(np.max(np.mean(Y,0)) + 0.5)
+        m += 1
         
+
+c_ind =3
+
 # %% PCA on individual groups
 
 pca = {}
-max_k = 50;
+max_k = 20;
+# d_list = np.logical_and(good_list > 179, good_list < 600)
 d_list = good_list > 179
+
 d_list3 = good_list <= 179
 
 
-d_list2 = d_list
+d_list2 = d_list3
+# d_list2 = good_list>-1
 # fig, axs = plt.subplots(trmax,6,figsize = (20,30))
 
 sm = 4
 
-for g in np.arange(trmax):
+for g in np.arange(trmax+2):
     pca[g] = PCA(n_components=max_k)
     R = ndimage.gaussian_filter(D[1,g][d_list2,:].T,[sm,0])
     test = pca[g].fit_transform(ndimage.gaussian_filter(R,[1,0]))        
@@ -433,7 +482,7 @@ n_cv = 20
 
 Overlap = np.zeros((trmax,trmax,n_cv)); # PPC_IC
 Overlap_across = np.zeros((trmax,trmax,n_cv));
-
+ 
 # O_mean = {}
 # O_std = {}
 # O_mean[0] = np.zeros((ax_sz,ax_sz));
@@ -463,9 +512,135 @@ imshowobj = axes.imshow(Overlap[:,:,0],cmap = "hot_r")
 imshowobj.set_clim(0.1, 1) #correct
 plt.colorbar(imshowobj) #adjusts scale to value range, looks OK
     
+
+
+# %% subspace overlap bar graph
     
+# Or1 = np.array([Overlap[0,1,0],Overlap[0,2,0],)
+
+
+
+# %% draw trajectories
+
+
+from mpl_toolkits import mplot3d
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from mpl_toolkits.mplot3d.art3d import Line3DCollection, Line3D
+from matplotlib import cm
     
-# %% Subspace overlap bar graph
+def draw_traj(traj,f,v,trmax,sc):
+    fig = plt.figure(figsize = (10,10))
+    ax = plt.axes(projection='3d')
+    # styles = ['solid', 'dotted', 'solid','dotted']
+    # cmap_names = ['autumn','autumn','winter','winter']
+    styles = ['solid','solid','dotted']
+    cmap_names = ['autumn','winter','winter']
+    for tr in np.arange(trmax):
+        x = traj[f][tr][:,0]
+        y = traj[f][tr][:,1]
+        z = traj[f][tr][:,2]
+        
+        x = ndimage.gaussian_filter(x,1)
+        y = ndimage.gaussian_filter(y,1)
+        z = ndimage.gaussian_filter(z,1)            
+            
+        time = np.arange(len(x))
+        points = np.array([x, y, z]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    
+        
+    
+        
+        # norm = plt.Normalize(time.min(), time.max())
+        # cmap=plt.get_cmap(cmap_names[tr])
+        # colors=[cmap(float(ii)/(n-1)) for ii in range(np.size(segments,0))]
+        colors = cm.copper(np.linspace(0,1,trmax))
+        
+        # norm = BoundaryNorm([0,19,29,49,89,109],cmap.N)
+        # lc = Line3DCollection(segments, cmap=cmap_names[tr], norm=norm,linestyle = styles[tr])
+        lc = Line3DCollection(segments, color = colors[tr])#linestyle = styles[tr])
+        # lc = Line3D(x,y,z, markevery = [0,19,29,49,89,109], color = colors[tr])#linestyle = styles[tr])
+        if tr ==4:
+            lc = Line3DCollection(segments, color = "red", linestyle = 'dotted')
+        # elif tr <4:
+        #     lc = Line3DCollection(segments, color = colors[tr], linestyle = 'solid')
+
+        lc.set_array(time)
+        lc.set_linewidth(2)
+        ax.add_collection3d(lc)
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        ax.set_zlabel('PC3')
+        
+        
+        for m in [0]:
+            ax.scatter(x[m], y[m], z[m], marker='o', color = "black")
+        if tr == 0:
+            ax.auto_scale_xyz(x,y,z)
+    if v ==1:
+        for n in range(0, 100):
+            if n >= 20 and n<50:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+4.0 #pan down faster 
+            if n >= 50 and n<80:
+                ax.set_xlabel('')
+                ax.set_ylabel('')
+                ax.elev = ax.elev+2.0 #pan down faster 
+                ax.azim = ax.azim+4.0
+            # if n >= 20 and n <= 22: 
+            #     ax.set_xlabel('')
+            #     ax.set_ylabel('') #don't show axis labels while we move around, it looks weird 
+            #     ax.elev = ax.elev-2 #start by panning down slowly 
+            # if n >= 23 and n <= 36: 
+            #     ax.elev = ax.elev-1.0 #pan down faster 
+            # if n >= 37 and n <= 60: 
+            #     ax.elev = ax.elev-1.5 
+            #     ax.azim = ax.azim+1.1 #pan down faster and start to rotate 
+            # if n >= 61 and n <= 64: 
+            #     ax.elev = ax.elev-1.0 
+            #     ax.azim = ax.azim+1.1 #pan down slower and rotate same speed 
+            # if n >= 65 and n <= 73: 
+            #     ax.elev = ax.elev-0.5 
+            #     ax.azim = ax.azim+1.1 #pan down slowly and rotate same speed 
+            # if n >= 74 and n <= 76:
+            #     ax.elev = ax.elev-0.2
+            #     ax.azim = ax.azim+0.5 #end by panning/rotating slowly to stopping position
+            if n >= 80: #add axis labels at the end, when the plot isn't moving around
+                ax.set_xlabel('PC1')
+                ax.set_ylabel('PC2')
+                ax.set_zlabel('PC3')
+            # fig.suptitle(u'3-D Poincaré Plot, chaos vs random', fontsize=12, x=0.5, y=0.85)
+            plt.savefig('Images/img' + str(n).zfill(3) + '.png',
+                        bbox_inches='tight')
+
+
+
+# %% trajectories
+
+traj = {};
+
+sm = 5
+t1 = 0
+t2 = 140
+g = 8
+traj[0] = {}
+R = {}
+
+
+
+for tr in np.arange(trmax):
+    R[tr]= ndimage.gaussian_filter(D[1,tr][d_list2,t1:t2].T,[sm,0])
+    R[tr] = R[tr]-np.mean(R[tr][20:40,:],0)
+    traj[0][tr] = np.dot(R[tr],pca[g].components_.T)
+
+
+
+
+
+draw_traj(traj,0,0,trmax,0)
+
 
     
     
