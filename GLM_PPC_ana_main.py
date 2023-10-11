@@ -299,10 +299,16 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     # Add reward  history
     Xpre = np.concatenate(([0],X[0:-1,2]*X[0:-1,1]),0)
     Xpre = Xpre[:,None]
-    Xpre2 = np.concatenate(([0,0],X[0:-2,2]*X[0:-2,1]),0)
-    Xpre2 = Xpre2[:,None]
+    
+    # 10/05 adding stim history, inverting sign for 10kHz = Go
+    Xprestim = np.concatenate(([0],-1*X[0:-1,3]+1),0)
+    Xprestim = Xprestim[:,None]
     # Add reward instead of action
-    X2 = np.column_stack([X[:,0],X[:,3],
+    # currently it's Contingency, Stimulus, Reward, and Reward History
+    # X2 = np.column_stack([X[:,0],X[:,3],
+    #                       X[:,2]*X[:,1],Xpre]) 
+
+    X2 = np.column_stack([Xprestim,-1*X[:,3]+1,
                           X[:,2]*X[:,1],Xpre]) 
 
 
@@ -343,15 +349,15 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca, m_ind,fig_on):
         # X = np.column_stack([X[:,0],l,X[:,2:]])
         # X3 = np.column_stack([l,X])
         X3 = X
-        if c_ind == 1 or c_ind == 2 or c_ind ==3:
-            X3[:,0] = 0
+        # if c_ind == 1 or c_ind == 2 or c_ind ==3:
+        #     X3[:,0] = 0
             
         Xm = np.zeros_like(X3)
         Xm[:,m_ind] = 1
         X3 = X3*Xm
         # adding kernels to each task variable
         if w*window <= prestim-2*window:
-            X3[:,0:3] = 0;
+            X3[:,1:3] = 0;
         elif w*window <= prestim+1500-2*window:
             X3[:,2]= 0;
             # if ca == 0:
@@ -613,7 +619,7 @@ k = 10 # number of cv
 ca = 1
 
 # define c index here, according to comments within the "glm_per_neuron" function
-c_list = [3]
+c_list = [1,2]
 
 
 
@@ -661,8 +667,8 @@ for c_ind in c_list:
         except:
             
             print("Error, probably not enough trials") 
-# np.save('Data_TTR_0914.npy', Data,allow_pickle= True)      
-
+# np.save('Data_TTR_1005.npy', Data,allow_pickle= True)      
+# 
 
 # %% testing model weight stuff
 
@@ -811,11 +817,11 @@ for nn in [101]:
 # b3 = [9, 37, 37, 77]
 
 
-b2 = [0, 80, 46, 64]
-b2 = np.array(b2)/165
+b2 = [275, 160, 89, 88]
+b2 = np.array(b2)/(626-160)
 
-b1 = [0, 39, 41, 26]
-b1 = np.array(b1)/91
+b1 = [96, 50, 34, 39]
+b1 = np.array(b1)/160
 
 
 fig, axes = plt.subplots(1,1,figsize = (10,8))
@@ -825,9 +831,9 @@ axes.bar(np.arange(4)*2+0.7,b2, color = cmap3, alpha = 1, width = 0.5)
 
 axes.set_ylim([0, 0.8])
 nb_TV = [];
-for n in good_listRu[:]:
+for n in good_listRu[160:]:
     
-    maxS = Data[n,c_ind-1]["maxS"]
+    maxS = Data[n,2]["maxS"]
     try:
         nb_TV.append(np.size(maxS,0))
     except:
@@ -896,10 +902,10 @@ plt.savefig("Rscore_hist.svg")
 
 
 good_listR = Rscore[4,:] > 0.02
-good_listR[66] = False
+good_listR[153] = False
+good_listR[150] = False
 good_listR[149] = False
 good_listR[7] = False
-
 good_listRu = good_list[good_listR]
 
 
@@ -1008,7 +1014,7 @@ d_list3 = good_list <= 179
 # cat_list = best_kernel[c_ind][0,:] != 0 # Only neurons that were categorized
 
 # good_list_sep = good_list[cat_list]
-# good_list_sep = good_list[d_list3]
+# good_list_sep = good_list[d_list]
 good_list_sep = good_listRu[:]
 
 
@@ -1090,8 +1096,8 @@ e_lines = e_lines+500
 
 weight = {}
 p = {}
-# p[-1] = np.arange(70,100)
-p[-1] = np.arange(0,30)
+p[-1] = np.arange(130,160)
+# p[-1] = np.arange(130,160)
 
 p[-2] = p[-1]
 # p[-2] = np.arange(0,15)
@@ -1100,7 +1106,7 @@ Lg = len(good_listRu)
 # Lg = 256
 # Lac = np.sum(d_list)
 # Lic = np.sum(d_list3)    
-Lic = 106 
+Lic = 160 
 for f in np.arange(ax_sz):  
     weight[-1,f]= np.zeros((1,Lg))
     weight[-2,f] = np.zeros((1,Lg))    
@@ -1122,15 +1128,15 @@ for f in np.arange(ax_sz):
 # %% Comparing weights between two time periods
 weight = {}
 p = {}
-Lg = 488 # 532
+Lg = 626 # 532
 # Lg = len(good_listRu)
-Lic = 122 # 129 
+Lic = 160 # 129 
 # d_list = good_list > 118
 # d_list3 = good_list <= 179
 # d_list3 = good_list <= 118
 # Lg = 600
-p[0] = np.arange(40,70)
-p[1] = np.arange(0,30)
+p[0] = np.arange(0,30)
+p[1] = np.arange(40,70)
 
 for f in np.arange(ax_sz):
     for z in [0,1]:
@@ -1143,8 +1149,8 @@ for f in np.arange(ax_sz):
 f1 = 3
 f2 = 3
 fig, axes = plt.subplots(1,1,figsize = (7,7))
-# axes.scatter(weight[0,f1][0,Lic:Lg],weight[1,f2][0,Lic:Lg], c = "blue")
-axes.scatter(weight[0,f1][0,0:Lic],weight[1,f2][0,0:Lic], c = "red")
+axes.scatter(weight[0,f1][0,Lic:Lg],weight[1,f2][0,Lic:Lg], c = "blue")
+# axes.scatter(weight[0,f1][0,0:Lic],weight[1,f2][0,0:Lic], c = "red")
 axes.vlines([-0.1, 0.1],-1,1,color = "black", linestyles = "dotted")
 axes.hlines([-0.1, 0.1],-1,1,color = "black", linestyles = "dotted")
 
@@ -1162,10 +1168,14 @@ th = 0.1
   
 list2 = (np.abs(weight[0,f1][0,rg]) > th) * (np.abs(weight[1,f2][0,rg]) > th)
 list3=  np.logical_or(np.abs(weight[0,f1][0,rg]) > th,np.abs(weight[1,f2][0,rg]) > th)
+
+
 # list4 = (np.abs(weight[0,f1][0,rg]) < th) * (np.abs(weight[1,f2][0,rg]) < th)
+
+# common vs indy
 print(np.sum(list2))    
-print(np.sum(list3))
-print(np.sum(list4))
+print(np.sum(list3)-np.sum(list2))
+# print(np.sum(list4))
 # good_listRu[list2]
 
 
@@ -1248,19 +1258,22 @@ stats.ks_2samp(C1,C2)
 
 # %%
 
-f =2
+f =1
 list2 = (weight[-1,f] < -0.1)# or (weight[-2,f] < -0.1)
 list3 = (weight[-2,f] < -0.1)# or (weight[-2,f] < -0.1)
 
 # list2 = (np.abs(weight[-1,f]) > 0.1)
 # list3 = (np.abs(weight[-2,f]) > 0.1)
-
+# print(np.sum(list2))    
+# print(np.sum(list3))
+# f = 1
 # fig, ax = plt.subplots(1,1,figsize = (7,7))
-# ax = sns.swarmplot(data=(np.abs(weight[-2,f][0,list3[0]]),np.abs(weight[-1,f][0,list2[0]])), palette=["red","blue"])
-# ax = sns.pointplot(data=(np.abs(weight[-2,f][0,list3[0]]),np.abs(weight[-1,f][0,list2[0]])), color = "black")
+# ax = sns.swarmplot(data=(weight[-2,f][0,list3[0]],weight[-1,f][0,list2[0]]), palette=["red","blue"])
+# ax = sns.pointplot(data=(weight[-2,f][0,list3[0]],weight[-1,f][0,list2[0]]), color = "black")
+# ax.set_ylim([-0.9,0.9])
 
 
-# stats.ks_2samp(np.abs(weight[-1,f][0,list2[0]]),np.abs(weight[-2,f][0,list3[0]]))
+stats.ks_2samp(np.abs(weight[-1,f][0,list2[0]]),np.abs(weight[-2,f][0,list3[0]]))
 
 # list2 = (weight[-1,f] < -0.1) #* (weight[-2,f] == 0)
 # list3 = (weight[-2,f] < -0.1) #* (weight[-2,f] == 0)
@@ -1268,8 +1281,7 @@ list3 = (weight[-2,f] < -0.1)# or (weight[-2,f] < -0.1)
 
 # list3 = (weight[-2,f] < -0.1)# * (weight[-1,f] == 0)
 ll = good_list_sep[list3[0]]
-print(np.sum(list2))    
-print(np.sum(list3))
+
 
 # list2[0,:] = d_list
 # list3[0,:] = d_list3
@@ -1286,14 +1298,19 @@ fig, axes = plt.subplots(1,1,figsize = (7,4))
 # y1 = np.mean(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)
 # s1 = np.std(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)/np.sqrt(np.sum(list2)+np.sum(list3))
 
-for f in [2]:
+for f in [1]:
     C1 = Convdata[f][list2[0,:],:]
     # C1 = np.abs(C1)
     
-    C1 = C1[np.max(np.abs(C1),1)>0,:]
+    # C1 = C1[np.max(np.abs(C1),1)>0,:]
     C2 = Convdata[f][list3[0,:],:]
+    
+
     # C2 = np.abs(C2)
-    C2 = C2[np.max(np.abs(C2),1)>0,:]
+    # C2 = C2[np.max(np.abs(C2),1)>0,:]
+    
+    print(np.size(C1,0))
+    print(np.size(C2,0))
     # if f == 1:
     #     C1 = -C1
     #     C2 = -C2
@@ -1335,12 +1352,24 @@ plt.savefig("Rew_post.svg")
 
 
 
+# fig, ax = plt.subplots(1,1,figsize = (3,6))
+# t1 = 70
+# t2 = 100
+# ax = sns.pointplot(data=(np.mean(C1[:,t1:t2],1),np.mean(C2[:,t1:t2],1)), color = "black")
+# ax = sns.swarmplot(data=(np.mean(C1[:,t1:t2],1),np.mean(C2[:,t1:t2],1)), palette=["blue","red"],size=7)
+# ax.set_ylim([-0.05,0.9])
+
+# stats.ks_2samp(np.mean(C1[:,t1:t2],1),np.mean(C2[:,t1:t2],1))
+
+
+
+
 # %% plotting weights by peak order
 
-f = 2
+f = 0
 list0 = (np.mean(Convdata[f],1) != 0)
-# list0[Lic:Lg] = False # PPCIC
-list0[0:Lic] = False # PPCAC
+list0[Lic:Lg] = False # PPCIC
+# list0[0:Lic] = False # PPCAC
 
 W = ndimage.uniform_filter(Convdata[f][list0,:],[0,5], mode = "mirror")
 
@@ -1419,7 +1448,7 @@ pe22 = []
 pe31 = []
 pe32 = []
 
-f = 3
+f = 0
 
 for w in np.arange(15)*10:
     p[-1] = np.arange(w,w+20)
@@ -1460,7 +1489,7 @@ fig, axes = plt.subplots(figsize=(5,5), ncols=2, sharey=True)
 fig.tight_layout()
 
 # Lic = 129
-# Lac = 532-129
+Lac = Lg-Lic
 
 axes[1].barh(index, np.array(pe21)/Lac, align='center', color=cmap[f],height = 0.3)
 axes[0].barh(index, -np.array(pe22)/Lac, align='center', color=cmap[f],height = 0.3,alpha = 0.7)
