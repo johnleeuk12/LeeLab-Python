@@ -236,38 +236,36 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
 
     X = D_ppc[n,2][:,2:6] # task variables
     Rt =  D_ppc[n,6] # reward time relative to stim onset, in seconds
-    # t_period = t_period+prestim
+    t_period = t_period+prestim
     
     # re-formatting Ca traces
     Yraw = {}
     Yraw = D_ppc[n,0]
-    # Yraw2 = np.concatenate((np.flip(Yraw[0,0:3000],0),Yraw[0,:],Yraw[0,-3000:-1]),0)
-    # sliding_w= np.lib.stride_tricks.sliding_window_view(np.arange(np.size(Yraw,1)+6000), 6000)
-    # Ymed_wind = np.zeros((1,np.size(Yraw,1)))
-    # for s in np.arange(np.size(Yraw,1)):
-    #     Ymed_wind[0,s] = np.median(Yraw2[sliding_w[s,:]])
-        
-    # Yraw3 = Yraw-Ymed_wind+np.mean(Yraw)
+    # Ca trace bin is approx 50ms
+    Ca_window = 50
+    Y1 = np.zeros((N_trial,int(t_period/Ca_window)))
+    Y = np.zeros((N_trial,int(t_period/window)))
+    for tr in range(N_trial):
+        Y1[tr,:] = Yraw[0,D_ppc[n,2][tr,0]-1 - int(prestim/Ca_window): D_ppc[n,2][tr,0] + int(t_period/Ca_window)-1 - int(prestim/Ca_window)]
     
-    # Original Y calculation #####
-    
-    # Y = np.zeros((N_trial,int(t_period/window)))
-    # for tr in range(N_trial):
-    #     Y[tr,:] = Yraw[0,D_ppc[n,2][tr,0]-1 - int(prestim/window): D_ppc[n,2][tr,0] + int(t_period/window)-1 - int(prestim/window)]
-
+    if Ca_window == window:
+        Y = Y1
+    else:
+        for w in np.arange(int(t_period/window)):
+            Y[:,w] = (Y1[:,2*w]+Y1[:,2*w+1])/2
     ####### analyzing Y including previous trial #####
-    stim_reward = 3500
-    total_period = t_period + stim_reward
-    Y = np.zeros((N_trial,int(((total_period))/window)))
-    # Y[0,:] = np.concatenate((Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1],
-    #                         Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1]))
-    Y[0,:] = Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1]
-    for tr in range(1,N_trial):
+    # stim_reward = 3500
+    # total_period = t_period + stim_reward
+    # Y = np.zeros((N_trial,int(((total_period))/window)))
+    # # Y[0,:] = np.concatenate((Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1],
+    # #                         Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1]))
+    # Y[0,:] = Yraw[0,D_ppc[n,2][0,0]-1: D_ppc[n,2][0,0] + int(total_period/window)-1]
+    # for tr in range(1,N_trial):
         
-        Y[tr,:] = np.concatenate((Yraw[0,D_ppc[n,2][tr-1,0]-1 : D_ppc[n,2][tr-1,0] + int(t_period/window)-1], 
-                                       Yraw[0,D_ppc[n,2][tr,0]-1 : D_ppc[n,2][tr,0] + int(stim_reward/window)-1]))
-        # Y[tr,:] = np.concatenate((Yraw[0,D_ppc[n,2][tr-1,0]-1 : D_ppc[n,2][tr-1,0] + int(total_period/window)-1],
-                                  # Yraw[0,D_ppc[n,2][tr,0]-1 : D_ppc[n,2][tr,0] + int(total_period/window)-1]))
+    #     Y[tr,:] = np.concatenate((Yraw[0,D_ppc[n,2][tr-1,0]-1 : D_ppc[n,2][tr-1,0] + int(t_period/window)-1], 
+    #                                    Yraw[0,D_ppc[n,2][tr,0]-1 : D_ppc[n,2][tr,0] + int(stim_reward/window)-1]))
+    #     # Y[tr,:] = np.concatenate((Yraw[0,D_ppc[n,2][tr-1,0]-1 : D_ppc[n,2][tr-1,0] + int(total_period/window)-1],
+    #                               # Yraw[0,D_ppc[n,2][tr,0]-1 : D_ppc[n,2][tr,0] + int(total_period/window)-1]))
 
     
     
@@ -330,7 +328,7 @@ def import_data_w_Ca(D_ppc,n,prestim,t_period,window,c_ind):
     XCR = (-1*X[:,1]+1)*X[:,3]
     
     X2 =   np.column_stack([XHit,Xmiss,XFA,XCR])
-    X2 = np.row_stack([[0,0,0,0],X2[:-1,:]])
+    X2 = np.row_stack([[0,0,0,0],X2[:-1,:]]) # previous hit FA miss etc
     
     
     # Adding Lick(action as well)
@@ -354,7 +352,8 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on):
     
     
     # t_period = (t_period+prestim)*2
-    t_period = t_period + 3500
+    # t_period = t_period + 3500
+    t_period = t_period + prestim
     Yhat = [];
     # Yhat1 = [];
     # Yhat2 = [];
@@ -526,10 +525,10 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on):
         # ax2.legend(loc = 'upper right')
     
         # e_lines = np.array([0,500,500+int(D_ppc[n,3]),2500+int(D_ppc[n,3])])
-        # e_lines = np.array([0,500,500+1000,2500+1000])
-        e_lines = np.array([0,500,500+1000,2500+1000, 8000, 8000+500, 8000+1500, 8000+ 3500])
+        e_lines = np.array([0,500,500+1000,2500+1000])
+        # e_lines = np.array([0,500,500+1000,2500+1000, 8000, 8000+500, 8000+1500, 8000+ 3500])
 
-        # e_lines = e_lines+prestim
+        e_lines = e_lines+prestim
     
         
         ax2.vlines(x =e_lines, 
@@ -551,16 +550,16 @@ def glm_per_neuron(n,t_period,prestim,window,k,c_ind,ca,fig_on):
         # if c_ind ==0:
         #    # stim_ind = X3[:,3] == 1 
         # else:
-        stim_ind1 = X[:,1] == 1     
-        stim_ind2 = X[:,1] == 0  
+        # stim_ind1 = X[:,1] == 1     
+        # stim_ind2 = X[:,1] == 0  
         
     
-        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
-                  linewidth = 2.0, color = cmap[2],label = 'Go',linestyle = lstyles[3])
-        ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
-                  linewidth = 2.0, color = cmap[2],label = 'NoGo',linestyle = 'dashed')
-        ax1.set_title('Firing rate y')
-        ax1.legend(loc = 'upper right')
+        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind1,:],0),2),
+        #           linewidth = 2.0, color = cmap[2],label = 'Go',linestyle = lstyles[3])
+        # ax1.plot(x_axis,ndimage.gaussian_filter(np.mean(Y[stim_ind2,:],0),2),
+        #           linewidth = 2.0, color = cmap[2],label = 'NoGo',linestyle = 'dashed')
+        # ax1.set_title('Firing rate y')
+        # ax1.legend(loc = 'upper right')
     
         
         # ax3.plot(x_axis,ndimage.gaussian_filter(np.mean(Yhat[stim_ind1,:],0),2),
@@ -687,10 +686,10 @@ Each column of X contains the following information:
 
 
 
-t_period = 8000
-prestim = 2000
+t_period = 4000
+prestim = 3000
 
-window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
+window = 100 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
 window2 = 500
 k = 10 # number of cv
 ca = 1
@@ -717,13 +716,18 @@ Nvar = 4
 S = np.zeros((1,Nvar))
 ana_period = np.array([0, t_period+prestim])
 weight_thresh = 2*1e-2
+PAC_list = np.load('PPC_Hist.npy',allow_pickle= True).item()
+
+ind =0 # 0 for IC 1 for AC
+f = 0
+PAC_list = PAC_list[ind,f]
 
 # change c_ind and n here. 
 
 for c_ind in c_list:
     # t = 0 
     good_list2 = [];
-    for n in PAC_list_Shist:#np.arange(np.size(D_ppc,0)):
+    for n in PAC_list:#np.arange(np.size(D_ppc,0)):
         
         n = int(n)
         # X, Y, Yhat, Model_Theta, score = glm_per_neuron(n, t_period, prestim, window,k,c_ind)
@@ -745,7 +749,7 @@ for c_ind in c_list:
         except:
             
             print("Error, probably not enough trials") 
-# np.save('Data_TTR_1005.npy', Data,allow_pickle= True)      
+# np.save('Data_Tran_PIC_Shist.npy', Data,allow_pickle= True)      
 # 
 
 # %% testing model weight stuff
@@ -790,15 +794,15 @@ c_ind = 3
 ax_sz = 4
 
 good_list_sep = good_list[d_list3]
-
+# PAC_list_Shist = PAC_list_Rhist
 # Rscore = {}
 Rscore = np.zeros((ax_sz+1,np.size(good_list)))
     
-y_lens = np.arange(230)
+y_lens = np.arange(70)
    
-for n in np.arange(np.size(PAC_list_Shist,0)):
+for n in np.arange(np.size(PAC_list,0)):
         # print(n)
-    nn = PAC_list_Shist[n]
+    nn = PAC_list[n]
     nn = int(nn)
     try:
         X = Data[nn,c_ind-1]["X"]
@@ -985,6 +989,8 @@ good_listR = Rscore[4,:] > 0.02
 # good_listR[7] = False
 good_listRu = good_list[good_listR]
 
+# PAC_list = np.delete(PAC_list,[11])
+PAC_list = np.delete(PAC_list,[6])
 
 
 
@@ -1019,26 +1025,27 @@ clabels = ["lick","Contingency","stim","reward","history"]
 lstyles = ['solid','solid','solid','solid','solid']
     
 
-score = np.zeros((230,1))
+score = np.zeros((70,1))
 Convdata = {}
 norm_score_all = {};
-norm_score_all = np.zeros((np.size(PAC_list_Shist),np.size(score,0)))
+
+norm_score_all = np.zeros((np.size(PAC_list),np.size(score,0)))
 for b_ind in np.arange(ax_sz):
-    Convdata[b_ind] = np.zeros((np.size(PAC_list_Shist),np.size(score,0)))
+    Convdata[b_ind] = np.zeros((np.size(PAC_list),np.size(score,0)))
         
-for n in np.arange(np.size(PAC_list_Shist,0)):
+for n in np.arange(np.size(PAC_list,0)):
     # n = int(n)
-    nn = int(PAC_list_Shist[n])
+    nn = int(PAC_list[n])
     Model_coef = Data[nn, c_ind-1]["coef"]
     Model_score = Data[nn, c_ind-1]["score"]
 
     # Model_coef = np.abs(Model_coef)/(np.max(np.abs(Model_coef)) + 0.1) # soft normalization value for model_coef
     Model_coef = Model_coef/(np.max(np.abs(Model_coef)) + 0.2) # soft normalization value for model_coef
 # 
-    norm_score = np.mean(Model_score, 1)
+    norm_score = np.median(Model_score, 1)
     norm_score[norm_score < weight_thresh] = 0
     norm_score = ndimage.gaussian_filter(norm_score,2)
-    norm_score[norm_score > 0] = 1 
+    norm_score[norm_score > 0.02] = 1 
     # if np.max(norm_score)>0:
     #     norm_score = norm_score/(np.max(norm_score)+weight_thresh)
     # else:
@@ -1060,10 +1067,10 @@ for n in np.arange(np.size(PAC_list_Shist,0)):
         Convdata[b_ind][n, :] = conv[b_ind, :]
 
 
-x_axis = np.arange(1, 3500+t_period, window)
+x_axis = np.arange(1, prestim+t_period, window)
 fig, axes = plt.subplots(1,1,figsize = (10,8))
 
-for f in range(ax_sz):
+for f in [0]: #range(ax_sz):
         error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list_sep))
         y = ndimage.gaussian_filter(np.abs(np.mean(Convdata[f],0)),2)
         axes.plot(x_axis*1e-3-t_period*1e-3,y,c = cmap3[f],linestyle = lstyles[f])
@@ -1084,17 +1091,17 @@ e_lines = e_lines+500
 
 weight = {}
 p = {}
-p[-1] = np.arange(100,220)
+p[-1] = np.arange(30,70)
 # p[-1] = np.arange(130,160)
 
 p[-2] = p[-1]
 # p[-2] = np.arange(0,15)
 
-Lg = len(good_listRu)
+Lg = len(PAC_list)
 # Lg = 256
 # Lac = np.sum(d_list)
 # Lic = np.sum(d_list3)    
-Lic = 40 
+Lic = Lg 
 for f in np.arange(ax_sz):  
     weight[-1,f]= np.zeros((1,Lg))
     weight[-2,f] = np.zeros((1,Lg))    
@@ -1251,7 +1258,7 @@ f =nf
 # list3 = (weight[-2,f] > 0.1)# or (weight[-2,f] < -0.1)
 list2 = {}
 for f in np.arange(nf):
-    list2[f] = (np.abs(weight[-1,f]) > 0.05)
+    list2[f] = (np.abs(weight[-1,f]) > 0.1)
 
 
 
@@ -1267,8 +1274,8 @@ fig, axes = plt.subplots(1,1,figsize = (7,4))
 for f in np.arange(nf):
     C1[f] = Convdata[f][list2[f][0,:],:]
     C1[f] = np.abs(C1[f])
+    # C1[f] = C1[f][np.max(np.abs(C1[f]),1)>0,:]
     C1[f] = ndimage.gaussian_filter(C1[f],[0,3])
-    # C1 = C1[np.max(np.abs(C1),1)>0,:]
     # C2 = Convdata[f][list3[0,:],:]
     # C2 = Convdata[f][[ 19,  22,  43,  59,  71,  72, 111],:]
 
@@ -1279,11 +1286,11 @@ for f in np.arange(nf):
     #     C2 = -C2
         
         
-    y1 = np.mean(C1[f],0)
-    s1 = np.std(C1[f],0)/np.sqrt(np.size(C1[f],0))
-
+    y1 = np.mean(C1[f],0)*np.size(C1[f],0)/len(good_listRu)
+    s1 = np.std(C1[f],0)/np.sqrt(len(good_listRu))
+    # s1 = np.std(C1[f],0)/np.sqrt(np.size(C1[f],0))
     
-    cmap = cmap3 = ['tab:purple','tab:blue','tab:red','tab:olive']
+    cmap =  ['tab:blue','tab:gray','tab:red','tab:green']
     # fig, axes = plt.subplots(1,1,figsize = (7,4))
     axes.plot(x_axis*1e-3-t_period*1e-3,y1,c = cmap[f],linestyle = 'solid')
     axes.fill_between(x_axis*1e-3-t_period*1e-3,y1-s1,y1+s1,facecolor = cmap[f],alpha = 0.3)
@@ -1320,80 +1327,110 @@ for f in np.arange(nf):
 
 
 # %% plotting weights by peak order
-
+fig, axes = plt.subplots(1,1,figsize = (10,10))
+cmap =  ['tab:blue','tab:gray','tab:red','tab:green']
 f = 3
-list0 = (np.mean(Convdata[f],1) != 0)
-# list0[Lic:Lg] = False # PPCIC
-# list0[0:Lic] = False # PPCAC
 
-W = ndimage.uniform_filter(Convdata[f][list0,:],[0,5], mode = "mirror")
+for f in np.arange(4):
+    list0 = (np.mean(Convdata[f],1) != 0)
+    # list0[Lic:Lg] = False # PPCIC
+    # list0[0:Lic] = False # PPCAC
+    
+    W = ndimage.uniform_filter(Convdata[f][list0,:],[0,5], mode = "mirror")
+    
+    max_peak = np.argmax(np.abs(W),1)
+    max_ind = max_peak.argsort()
+    
+    list1 = []
+    list2 = []
+    list3 = []
+    SD = np.std(W[:,:])
+    for m in np.arange(np.size(W,0)):
+        n = max_ind[m]
+        
+        if SD< 0.05:
+            SD = 0.05
+        if W[n,max_peak[n]] > 2*SD:
+            list1.append(m)
+            list3.append(m)
+        elif W[n,max_peak[n]] <-2*SD:
+            list2.append(m)
+            list3.append(m)
+        
+    max_ind1 = max_ind[list1]  
+    max_ind2 = max_ind[list2]     
+    max_ind3 = max_ind[list3]
+    max_peak3 = max_peak[max_ind3]
+    
+    # print(np.sum((max_peak3>40) * (max_peak3<80)))
+    # print(np.sum((max_peak3>0) * (max_peak3<40)))
+    # print(np.sum((max_peak3>80) * (max_peak3<120)))
+    
+    W1 = W[max_ind1]
+    W2 = W[max_ind2]    
+    W3a = W[max_ind3]
+    
+    W3 = np.concatenate((W1,W2), axis = 0)
+    
+    
+    W4 = np.zeros_like(W3a)
+    long = np.zeros((np.size(W4,0),1))
+    
+    for n in np.arange(np.size(W3a,0)):
+        sd = np.std(np.abs(W3a[n,:]))
+        W4[n,:] = (np.abs(W3a[n,:])) #> sd*1
+        test = np.where(W4[n,:]<1) - np.argmax(np.abs(W3a[n,:]))
+        if test[0,np.abs(test).argmin()] < 0:
+            if np.abs(test).argmin() != np.size(test,1)-1:
+                long[n] =test[0,np.abs(test).argmin()+1]-test[0,np.abs(test).argmin()]
+            else: 
+                long[n] = -test[0,np.abs(test).argmin()]
+                                
+        elif test[0,np.abs(test).argmin()] > 0:
+            if np.abs(test).argmin() != 0:
+                long[n] = test[0,np.abs(test).argmin()]-test[0,np.abs(test).argmin()-1]
+            else:
+                long[n] = test[0,np.abs(test).argmin()]
+            
+    
+    
+    
+    
+    
+    fig, axes = plt.subplots(1,1,figsize = (10,10))
+    
+    # clim = [-0.4, 0.4]
+    # im1 = axes.imshow(W3, clim = clim, aspect = "auto", interpolation = "None",cmap = "viridis")
+    clim = [0, 0.5]
+    im1 = axes.imshow(W4, clim = clim, aspect = "auto", interpolation = "None",cmap = "viridis")
+    # im2 = axes[1].imshow(W2, clim = clim, aspect = "auto", interpolation = "None")
+    print(np.size(W4,0))
+    
+    fig, axes = plt.subplots(1,1,figsize = (10,10))
 
-max_peak = np.argmax(np.abs(W),1)
-max_ind = max_peak.argsort()
-
-list1 = []
-list2 = []
-list3 = []
-for m in np.arange(np.size(W,0)):
-    n = max_ind[m]
-    if W[n,max_peak[n]] > 0.1:
-        list1.append(m)
-        list3.append(m)
-    elif W[n,max_peak[n]] <-0.1:
-        list2.append(m)
-        list3.append(m)
-
-max_ind1 = max_ind[list1]  
-max_ind2 = max_ind[list2]     
-max_ind3 = max_ind[list3]
-   
-W1 = W[max_ind1]
-W2 = W[max_ind2]    
-W3a = W[max_ind3]
-
-W3 = np.concatenate((W1,W2), axis = 0)
-
-
-W4 = np.zeros_like(W3a)
-long = np.zeros((np.size(W4,0),1))
-
-for n in np.arange(np.size(W3a,0)):
-    sd = np.std(np.abs(W3a[n,:]))
-    W4[n,:] = (np.abs(W3a[n,:])) #> sd*1
-    test = np.where(W4[n,:]<1) - np.argmax(np.abs(W3a[n,:]))
-    if test[0,np.abs(test).argmin()] < 0:
-        if np.abs(test).argmin() != np.size(test,1)-1:
-            long[n] =test[0,np.abs(test).argmin()+1]-test[0,np.abs(test).argmin()]
-        else: 
-            long[n] = -test[0,np.abs(test).argmin()]
-                            
-    elif test[0,np.abs(test).argmin()] > 0:
-        if np.abs(test).argmin() != 0:
-            long[n] = test[0,np.abs(test).argmin()]-test[0,np.abs(test).argmin()-1]
-        else:
-            long[n] = test[0,np.abs(test).argmin()]
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.04, 0.7])
+    fig.colorbar(im1, cax=cbar_ax)
+    
+    if np.size(long) > 150:
+        long1 = long *0.05
+    else:
+        long2 = long *0.05
+        
         
 
-
-
-
-
-fig, axes = plt.subplots(1,1,figsize = (10,10))
-
-# clim = [-0.4, 0.4]
-# im1 = axes.imshow(W3a, clim = clim, aspect = "auto", interpolation = "None",cmap = "viridis")
-clim = [0, 0.5]
-im1 = axes.imshow(W4, clim = clim, aspect = "auto", interpolation = "None",cmap = "viridis")
-# im2 = axes[1].imshow(W2, clim = clim, aspect = "auto", interpolation = "None")
-
-fig.subplots_adjust(right=0.85)
-cbar_ax = fig.add_axes([0.88, 0.15, 0.04, 0.7])
-fig.colorbar(im1, cax=cbar_ax)
-
-if np.size(long) > 150:
-    long1 = long *0.05
-else:
-    long2 = long *0.05
+    y1 = ndimage.gaussian_filter1d(np.mean(W4[:,:],0),3)
+    error1 = np.std(W4,0)/np.sqrt(np.size(W4[:,:],0))
+    error2 = np.std(W4)/np.sqrt(np.size(W4[:,:],0))
+    # error2 = SD/np.sqrt(np.size(W4,0))
+    axes.plot(x_axis*1e-3-prestim*1e-3,y1,c = cmap[f],linestyle = "solid")
+    axes.fill_between(x_axis*1e-3-prestim*1e-3,y1-error1,y1+error1,facecolor = cmap[f],alpha = 0.3)
+    axes.hlines(error2,xmin =-prestim*1e-3, xmax = (t_period)*1e-3, colors= "black", linestyles = "dotted"  )
+    for t in y_lens:
+        s,p = stats.ttest_1samp(W4[3:,t],error2,alternative = "greater")
+        if p < 0.05:
+            axes.scatter([(t*window-prestim)*1e-3],[0],marker = '*', color = 'red')
+    
 
 # %%
 fig, ax = plt.subplots(1,1,figsize = (7,10))

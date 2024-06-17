@@ -356,7 +356,7 @@ Each column of X contains the following information:
 
 
 
-t_period = 8000
+t_period = 6000
 prestim = 2000
 
 window = 50 # averaging firing rates with this window. for Ca data, maintain 50ms (20Hz)
@@ -385,7 +385,7 @@ D[0,tr] = np.zeros((len(good_list),lenx))
 D[1,tr] = np.zeros((len(good_list),lenx))
 
 
-c_ind = 1
+c_ind = 3
 Y = {}
 Ygo = {}
 m = 0
@@ -405,14 +405,16 @@ for n in good_list:
 
 fig, axes = plt.subplots(figsize =(10,10))
 
-cmap = ["red","blue"]
+cmap = ["tab:blue","tab:red"]
 xaxis = np.linspace(-2,6,lenx+1)
 xaxis  = xaxis[1:]
 for c in [0,1]:
-    gD = ndimage.gaussian_filter(D[c,0][:133,:],[0,3])
+    gD = ndimage.gaussian_filter(D[c,0][133:,:],[0,3])
     sD = np.std(gD,0)/np.sqrt(np.size(gD,0))
-    axes.plot(xaxis,np.mean(gD,0),color = cmap[c])
-    axes.fill_between(xaxis,np.mean(gD,0)+sD,np.mean(gD,0)-sD,color = cmap[c], alpha = 0.2)
+    axes.plot(xaxis,np.mean(gD,0),color = cmap[c],linewidth = 4)
+    axes.fill_between(xaxis,np.mean(gD,0)+sD,np.mean(gD,0)-sD,color = cmap[c], alpha = 0.3)
+    # axes.set_ylim([-0.10, 1.05])
+    axes.set_ylim([-0.15, 0.40])
 
 
 

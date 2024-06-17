@@ -693,7 +693,7 @@ else:
     
 # %% Run GLM 
 Data = {}
-Data = np.load('Data_TTR_1012.npy',allow_pickle= True).item()
+# Data = np.load('Data_TTR_1012.npy',allow_pickle= True).item()
 # 
 # additional code for explained variance comparison
 DataS = {}
@@ -1050,6 +1050,7 @@ fig, axes = plt.subplots(1,1,figsize = (10,8))
 for f in range(ax_sz):
         error = np.std(Convdata[f],0)/np.sqrt(np.size(good_list_sep))
         y = ndimage.gaussian_filter(np.mean(Convdata[f],0),2)
+        # y = np.abs(y)
         axes.plot(x_axis*1e-3-t_period*1e-3,y,c = cmap3[f],linestyle = lstyles[f])
         axes.fill_between(x_axis*1e-3-t_period*1e-3,y-error,y+error,facecolor = cmap3[f],alpha = 0.3)
         axes.set_ylim([-0.04,0.12])
@@ -1230,7 +1231,7 @@ stats.ks_2samp(C1,C2)
 
 # %%
 
-f =0
+f =3
 # list2 = (weight[-1,f] > 0.1)# or (weight[-2,f] < -0.1)
 # list3 = (weight[-2,f] < -0.1)# or (weight[-2,f] < -0.1)
 
@@ -1270,7 +1271,7 @@ fig, axes = plt.subplots(1,1,figsize = (7,4))
 # y1 = np.mean(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)
 # s1 = np.std(np.concatenate((Convdata[f][list2[0,:],:], Convdata[f][list3[0,:],:])),0)/np.sqrt(np.sum(list2)+np.sum(list3))
 
-for f in [0]:
+for f in [3]:
     C1 = Convdata[f][list2[0,:],:]
     C1 = np.abs(C1)
     C1 = ndimage.gaussian_filter(C1,[0,3])
@@ -1349,7 +1350,7 @@ for f in [0]:
 
 # %% plotting weights by peak order
 
-f = 0
+f = 3
 list0 = (np.mean(Convdata[f],1) != 0)
 # list0[Lic:Lg] = False # PPCIC
 list0[0:Lic] = False # PPCAC
